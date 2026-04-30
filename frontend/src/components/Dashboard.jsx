@@ -28,7 +28,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, activeTab]);
 
   const handleEnroll = async (courseId) => {
     try {
