@@ -100,6 +100,7 @@ class AssignmentUpdate(BaseModel):
 class AssignmentResponse(AssignmentBase):
     id: int
     course_id: int
+    created_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -154,6 +155,7 @@ class TextBlockUpdate(BaseModel):
 class TextBlockResponse(TextBlockBase):
     id: int
     course_id: int
+    created_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True

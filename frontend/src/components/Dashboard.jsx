@@ -132,16 +132,24 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
             </div>
           )}
           {courses.map(course => (
-            <div key={course.id} className="glass-card" style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-              
+            <div key={course.id} className="glass-card" style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+              {/* Course thumbnail */}
+              <div style={{ width: '90px', height: '90px', borderRadius: '14px', overflow: 'hidden', flexShrink: 0,
+                background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {course.image_url
+                  ? <img src={course.image_url} alt={course.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: '2.5rem' }}>📚</span>
+                }
+              </div>
+
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.4rem' }}>{course.title}</h3>
+                  <h3 style={{ margin: 0, fontSize: '1.3rem' }}>{course.title}</h3>
                   <span className={`badge ${course.is_visible ? 'success' : 'warning'}`}>
                     {course.is_visible ? 'Public' : 'Draft'}
                   </span>
                 </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5', margin: '0 0 0.5rem 0' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 0.5rem 0' }}>
                   {course.description}
                 </p>
                 {course.teacher && (
@@ -150,13 +158,13 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                   </p>
                 )}
               </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '150px' }}>
-                <button className="primary" onClick={() => onSelectCourse(course)}>Open Details</button>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '130px' }}>
+                <button className="primary" onClick={() => onSelectCourse(course)}>Open →</button>
                 {activeTab === 'all' && Number(course.teacher_id) !== Number(user.id) && (
                   <button onClick={() => handleEnroll(course.id)}>Enroll</button>
                 )}
-                {(activeTab === 'my') && (
+                {activeTab === 'my' && (
                   <button className="danger" onClick={() => handleUnenroll(course.id)}>Leave</button>
                 )}
               </div>

@@ -16,10 +16,15 @@ from gmail_service import gmail_service
 
 app = FastAPI(title="Tutor-Learning-API", version="1.0")
 
-# CORS middleware — allow all origins for development
+# CORS middleware — allow specific origins for development and production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,8 +32,24 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    """Create tables on startup (idempotent)"""
+    """Create tables on startup (idempotent) and handle migrations"""
     models.Base.metadata.create_all(bind=engine)
+    
+    # Manual migration for existing databases missing 'created_at' columns
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        print("Running schema migrations...")
+        try:
+            conn.execute(text("ALTER TABLE Assignments ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+            conn.commit()
+            print("Migration: Added created_at to Assignments")
+        except Exception: pass
+        
+        try:
+            conn.execute(text("ALTER TABLE TextBlocks ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+            conn.commit()
+            print("Migration: Added created_at to TextBlocks")
+        except Exception: pass
 
 # Configuration for encrypting passwords
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -184,6 +205,14 @@ async def update_course_image(course_id: int, file: UploadFile = File(...), db: 
     db.commit()
     db.refresh(course)
     return {"image_url": public_url}
+
+@app.get("/files/{file_id}")
+def get_file_redirect(file_id: int, db: Session = Depends(get_db)):
+    """Proxies/Redirects to the GCS URL to handle previewing files securely"""
+    db_file = db.query(models.File).filter(models.File.id == file_id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    return RedirectResponse(url=db_file.gcs_url)
 
 @app.get("/courses/teacher/{teacher_id}", response_model=list[schemas.CourseResponse])
 def get_teacher_courses(teacher_id: int, db: Session = Depends(get_db)):
