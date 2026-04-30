@@ -24,15 +24,6 @@ const CourseDetails = ({ course, user, onBack }) => {
       // Merge and sort (mocking sorting by ID for now)
       let combined = [...assignments, ...textBlocks, ...files].sort((a, b) => b.id - a.id);
 
-      // Add Mock data if empty
-      if (combined.length === 0) {
-        combined = [
-          { id: 'm1', type: 'lesson', title: 'Welcome to the Course!', content: 'In this course we will learn about modern web development...' },
-          { id: 'm2', type: 'file', file_name: 'Syllabus.pdf', gcs_url: '#' },
-          { id: 'm3', type: 'assignment', title: 'Initial Project Setup', due_date: '2026-05-10' }
-        ];
-      }
-
       setFeed(combined);
 
       if (user.is_teacher && course.teacher_id === user.id) {
