@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../App';
 
 const CourseDetails = ({ course, user, onBack }) => {
-  const [assignments, setAssignments] = useState([]);
-  const [textBlocks, setTextBlocks] = useState([]);
-  const [files, setFiles] = useState([]);
+  const [feed, setFeed] = useState([]);
   const [students, setStudents] = useState([]);
   
   const [newAssignment, setNewAssignment] = useState({ title: '', description: '', due_date: '' });
@@ -18,9 +16,24 @@ const CourseDetails = ({ course, user, onBack }) => {
         fetch(`${API_URL}/textblocks/course/${course.id}`),
         fetch(`${API_URL}/files/course/${course.id}`)
       ]);
-      setAssignments(await assRes.json());
-      setTextBlocks(await txtRes.json());
-      setFiles(await filRes.json());
+      
+      const assignments = (await assRes.json()).map(item => ({ ...item, type: 'assignment' }));
+      const textBlocks = (await txtRes.json()).map(item => ({ ...item, type: 'lesson' }));
+      const files = (await filRes.json()).map(item => ({ ...item, type: 'file' }));
+
+      // Merge and sort (mocking sorting by ID for now)
+      let combined = [...assignments, ...textBlocks, ...files].sort((a, b) => b.id - a.id);
+
+      // Add Mock data if empty
+      if (combined.length === 0) {
+        combined = [
+          { id: 'm1', type: 'lesson', title: 'Welcome to the Course!', content: 'In this course we will learn about modern web development...' },
+          { id: 'm2', type: 'file', file_name: 'Syllabus.pdf', gcs_url: '#' },
+          { id: 'm3', type: 'assignment', title: 'Initial Project Setup', due_date: '2026-05-10' }
+        ];
+      }
+
+      setFeed(combined);
 
       if (user.is_teacher && course.teacher_id === user.id) {
         const stdRes = await fetch(`${API_URL}/enrollments/course/${course.id}`);
@@ -83,88 +96,78 @@ const CourseDetails = ({ course, user, onBack }) => {
     }
   };
 
-  const isOwner = user.is_teacher && course.teacher_id === user.id;
+  const isOwner = user.is_teacher && Number(course.teacher_id) === Number(user.id);
 
   return (
     <div>
       <div className="navbar glass-card" style={{ padding: '0.5rem 1.5rem', marginBottom: '2rem' }}>
         <button onClick={onBack} style={{ background: '#64748b' }}>← Back</button>
         <h2 style={{ margin: 0 }}>{course.title}</h2>
-        <div className="role-badge">Course Details</div>
+        <div className="role-badge">Course Feed</div>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
+      <div className="grid" style={{ gridTemplateColumns: '1fr 300px', alignItems: 'start' }}>
+        
+        {/* MAIN FEED */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
-          {/* TEXT BLOCKS */}
-          <section className="glass-card">
-            <h3>📖 Lessons & Info</h3>
-            {isOwner && (
-              <form onSubmit={handleAddTextBlock} style={{ marginBottom: '1.5rem' }}>
-                <input placeholder="Topic Title" value={newTextBlock.title} onChange={e => setNewTextBlock({...newTextBlock, title: e.target.value})} required />
-                <textarea 
-                  placeholder="Content..." 
-                  value={newTextBlock.content} 
-                  onChange={e => setNewTextBlock({...newTextBlock, content: e.target.value})}
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', minHeight: '100px' }}
-                />
-                <button type="submit">Post Info</button>
-              </form>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {textBlocks.map(tb => (
-                <div key={tb.id} className="glass-card" style={{ padding: '1rem', background: '#fff' }}>
-                  <h4 style={{ margin: 0 }}>{tb.title}</h4>
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{tb.content}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+          {isOwner && (
+            <section className="glass-card" style={{ border: '2px dashed #6366f1' }}>
+              <h3>➕ Add Content</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <form onSubmit={handleAddTextBlock}>
+                  <h4>New Lesson</h4>
+                  <input placeholder="Title" value={newTextBlock.title} onChange={e => setNewTextBlock({...newTextBlock, title: e.target.value})} required />
+                  <textarea placeholder="Content" value={newTextBlock.content} onChange={e => setNewTextBlock({...newTextBlock, content: e.target.value})} style={{ width: '100%', minHeight: '60px' }} />
+                  <button type="submit">Post</button>
+                </form>
+                <form onSubmit={handleAddAssignment}>
+                  <h4>New Assignment</h4>
+                  <input placeholder="Task" value={newAssignment.title} onChange={e => setNewAssignment({...newAssignment, title: e.target.value})} required />
+                  <input type="date" value={newAssignment.due_date} onChange={e => setNewAssignment({...newAssignment, due_date: e.target.value})} required />
+                  <button type="submit">Add</button>
+                </form>
+              </div>
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
+                <h4>Upload Resource</h4>
+                <input type="file" onChange={handleFileUpload} disabled={uploading} />
+              </div>
+            </section>
+          )}
 
-          {/* ASSIGNMENTS */}
-          <section className="glass-card">
-            <h3>📝 Assignments</h3>
-            {isOwner && (
-              <form onSubmit={handleAddAssignment} style={{ marginBottom: '1.5rem' }}>
-                <input placeholder="Task Title" value={newAssignment.title} onChange={e => setNewAssignment({...newAssignment, title: e.target.value})} required />
-                <input type="date" value={newAssignment.due_date} onChange={e => setNewAssignment({...newAssignment, due_date: e.target.value})} required />
-                <button type="submit">Create Task</button>
-              </form>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {assignments.map(as => (
-                <div key={as.id} className="glass-card" style={{ padding: '1rem', borderLeft: '4px solid #f59e0b' }}>
-                  <h4 style={{ margin: 0 }}>{as.title}</h4>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Due: {as.due_date}</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {feed.map(item => (
+              <div key={item.id} className="glass-card" style={{ 
+                padding: '1.5rem', 
+                borderLeft: `6px solid ${item.type === 'lesson' ? '#6366f1' : item.type === 'assignment' ? '#f59e0b' : '#10b981'}`,
+                background: '#fff'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b' }}>
+                    {item.type}
+                  </span>
+                  {item.due_date && <span style={{ fontSize: '0.8rem', color: '#f59e0b' }}>Due: {item.due_date}</span>}
                 </div>
-              ))}
-            </div>
-          </section>
+                
+                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem' }}>{item.title || item.file_name}</h4>
+                
+                {item.content && <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#334155' }}>{item.content}</p>}
+                
+                {item.type === 'file' && (
+                  <a href={item.gcs_url} target="_blank" rel="noreferrer" className="role-badge" style={{ display: 'inline-block', marginTop: '10px', textDecoration: 'none' }}>
+                    📥 Download File
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
+        {/* SIDEBAR */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* FILES */}
-          <section className="glass-card">
-            <h3>📁 Resources</h3>
-            {isOwner && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <input type="file" onChange={handleFileUpload} disabled={uploading} style={{ fontSize: '0.8rem' }} />
-                {uploading && <p style={{ fontSize: '0.8rem' }}>Uploading...</p>}
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {files.map(f => (
-                <a key={f.id} href={f.gcs_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: '#6366f1', fontSize: '0.9rem' }}>
-                  📄 {f.file_name}
-                </a>
-              ))}
-            </div>
-          </section>
-
-          {/* STUDENTS LIST */}
           {isOwner && (
             <section className="glass-card">
-              <h3>👥 Enrolled Students</h3>
+              <h3>👥 Students</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {students.map(s => (
                   <div key={s.user_id} style={{ fontSize: '0.9rem', padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>
@@ -175,7 +178,13 @@ const CourseDetails = ({ course, user, onBack }) => {
               </div>
             </section>
           )}
+
+          <section className="glass-card" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: 'white' }}>
+            <h3 style={{ margin: 0 }}>Course Info</h3>
+            <p style={{ fontSize: '0.9rem', opacity: 0.9 }}>{course.description}</p>
+          </section>
         </div>
+
       </div>
     </div>
   );
