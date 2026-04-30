@@ -76,6 +76,23 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
     }
   };
 
+  const handleDeleteCourse = async (courseId) => {
+    if (!window.confirm("Are you sure you want to PERMANENTLY delete this course and all its data?")) return;
+    try {
+      const response = await fetch(`${API_URL}/courses/${courseId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchData();
+      } else {
+        const data = await response.json();
+        alert(data.detail || "Delete failed");
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+    }
+  };
+
   const enrolledIds = enrollments.map(e => e.course_id);
 
   return (
@@ -133,7 +150,10 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                     <div key={`teacher-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
                       <h4 style={{ margin: 0 }}>{course.title}</h4>
                       <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{course.description}</p>
-                      <button onClick={() => onSelectCourse(course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', marginTop: '10px' }}>Manage Course</button>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                        <button onClick={() => onSelectCourse(course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', flex: 1 }}>Manage</button>
+                        <button onClick={() => handleDeleteCourse(course.id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', background: '#ef4444' }}>🗑️</button>
+                      </div>
                     </div>
                   ))}
                   {courses.filter(c => Number(c.teacher_id) === Number(user.id)).length === 0 && (
