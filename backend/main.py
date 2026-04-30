@@ -356,19 +356,19 @@ def list_course_enrollments(course_id: int, db: Session = Depends(get_db)):
 @app.delete("/enrollments/user/{user_id}/course/{course_id}")
 def delete_enrollment(user_id: int, course_id: int, db: Session = Depends(get_db)):
     """Unenrolls a user from a course"""
-    print(f"DEBUG: Attempting to delete enrollment for user={user_id}, course={course_id}")
-    db_enrollment = db.query(models.Enrollment).filter(
-        models.Enrollment.user_id == user_id,
-        models.Enrollment.course_id == course_id
-    ).first()
-    
-    if not db_enrollment:
-        print(f"DEBUG: Enrollment NOT FOUND for user={user_id}, course={course_id}")
-        raise HTTPException(status_code=404, detail="Enrollment not found")
+    from sqlalchemy import text
+    try:
+        sql = text("DELETE FROM Enrollments WHERE user_id = :u AND course_id = :c")
+        result = db.execute(sql, {"u": user_id, "c": course_id})
+        db.commit()
         
-    db.delete(db_enrollment)
-    db.commit()
-    return {"message": "Successfully unenrolled"}
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Enrollment not found in DB")
+            
+        return {"message": "Successfully unenrolled"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ================== FILES (GCS HYBRID) ==================
