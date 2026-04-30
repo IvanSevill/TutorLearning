@@ -5,6 +5,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [newCourse, setNewCourse] = useState({ title: '', description: '' });
+  const [activeTab, setActiveTab] = useState('my-courses'); // 'my-courses' or 'explore'
 
   const fetchData = useCallback(async () => {
     try {
@@ -102,71 +103,104 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+        <button 
+          onClick={() => setActiveTab('my-courses')}
+          style={{ 
+            background: activeTab === 'my-courses' ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'white',
+            color: activeTab === 'my-courses' ? 'white' : '#64748b',
+            flex: 1
+          }}
+        >
+          My Courses
+        </button>
+        <button 
+          onClick={() => setActiveTab('explore')}
+          style={{ 
+            background: activeTab === 'explore' ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'white',
+            color: activeTab === 'explore' ? 'white' : '#64748b',
+            flex: 1
+          }}
+        >
+          Explore Available
+        </button>
+      </div>
+
       <div style={{ display: 'grid', gap: '2rem' }}>
         
-        {/* TEACHER SECTION */}
-        {user.is_teacher && (
-          <section className="glass-card" style={{ borderLeft: '4px solid #6366f1' }}>
-            <h3 style={{ marginTop: 0 }}>👨‍🏫 Teacher Management</h3>
-            <form onSubmit={handleCreateCourse} style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem' }}>
-              <input 
-                placeholder="Course Title" 
-                value={newCourse.title} 
-                onChange={e => setNewCourse({...newCourse, title: e.target.value})}
-                required 
-                style={{ margin: 0 }}
-              />
-              <input 
-                placeholder="Description" 
-                value={newCourse.description} 
-                onChange={e => setNewCourse({...newCourse, description: e.target.value})}
-                style={{ margin: 0 }}
-              />
-              <button type="submit" style={{ whiteSpace: 'nowrap' }}>Create Course</button>
-            </form>
-            
+        {activeTab === 'my-courses' && (
+          <>
+            {/* TEACHER SECTION */}
+            {user.is_teacher && (
+              <section className="glass-card" style={{ borderLeft: '4px solid #6366f1' }}>
+                <h3 style={{ marginTop: 0 }}>👨‍🏫 My Taught Courses</h3>
+                <form onSubmit={handleCreateCourse} style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem' }}>
+                  <input 
+                    placeholder="Course Title" 
+                    value={newCourse.title} 
+                    onChange={e => setNewCourse({...newCourse, title: e.target.value})}
+                    required 
+                    style={{ margin: 0 }}
+                  />
+                  <input 
+                    placeholder="Description" 
+                    value={newCourse.description} 
+                    onChange={e => setNewCourse({...newCourse, description: e.target.value})}
+                    style={{ margin: 0 }}
+                  />
+                  <button type="submit" style={{ whiteSpace: 'nowrap' }}>Create New</button>
+                </form>
+                
+                <div className="grid">
+                  {courses.filter(c => Number(c.teacher_id) === Number(user.id)).map(course => (
+                    <div key={`teacher-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
+                      <h4 style={{ margin: 0 }}>{course.title}</h4>
+                      <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{course.description}</p>
+                      <button onClick={() => onSelectCourse(course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', marginTop: '10px' }}>Manage Course</button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ENROLLMENTS SECTION */}
+            <section className="glass-card">
+              <h3 style={{ marginTop: 0 }}>🎓 My Enrolled Courses</h3>
+              <div className="grid">
+                {enrollments.map(enrollment => (
+                  <div key={`enrollment-${enrollment.course_id}`} className="glass-card" style={{ padding: '1rem', borderLeft: '4px solid #10b981' }}>
+                    <h4 style={{ margin: 0 }}>{enrollment.course?.title || `Course ${enrollment.course_id}`}</h4>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                      <button onClick={() => onSelectCourse(enrollment.course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enter</button>
+                      <button onClick={() => handleUnenroll(enrollment.course_id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', background: '#ef4444' }}>Leave</button>
+                    </div>
+                  </div>
+                ))}
+                {enrollments.length === 0 && <p style={{ color: '#64748b' }}>No enrollments yet.</p>}
+              </div>
+            </section>
+          </>
+        )}
+
+        {activeTab === 'explore' && (
+          <section className="glass-card">
+            <h3 style={{ marginTop: 0 }}>🌍 Discover Courses</h3>
             <div className="grid">
-              {courses.filter(c => Number(c.teacher_id) === Number(user.id)).map(course => (
-                <div key={`teacher-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
-                  <h4 style={{ margin: 0 }}>{course.title}</h4>
-                  <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{course.description}</p>
-                  <button onClick={() => onSelectCourse(course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', marginTop: '10px' }}>View Details</button>
+              {courses.filter(c => !enrolledIds.includes(c.id) && Number(c.teacher_id) !== Number(user.id)).map(course => (
+                <div key={`available-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <h4 style={{ margin: 0 }}>{course.title}</h4>
+                    <button onClick={() => handleEnroll(course.id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enroll Now</button>
+                  </div>
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>{course.description}</p>
                 </div>
               ))}
+              {courses.filter(c => !enrolledIds.includes(c.id) && Number(c.teacher_id) !== Number(user.id)).length === 0 && (
+                <p style={{ color: '#64748b' }}>No other courses available right now.</p>
+              )}
             </div>
           </section>
         )}
-
-        {/* STUDENT SECTION */}
-        <section className="glass-card">
-          <h3 style={{ marginTop: 0 }}>🎓 Student Dashboard</h3>
-          
-          <h4>My Enrollments</h4>
-          <div className="grid">
-            {enrollments.map(enrollment => (
-              <div key={`enrollment-${enrollment.course_id}`} className="glass-card" style={{ padding: '1rem', borderLeft: '4px solid #10b981' }}>
-                <h4 style={{ margin: 0 }}>{enrollment.course?.title || `Course ${enrollment.course_id}`}</h4>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                  <button onClick={() => onSelectCourse(enrollment.course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enter Course</button>
-                  <button onClick={() => handleUnenroll(enrollment.course_id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', background: '#ef4444' }}>Leave</button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <h4 style={{ marginTop: '2rem' }}>Explore Available Courses</h4>
-          <div className="grid">
-            {courses.filter(c => !enrolledIds.includes(c.id) && Number(c.teacher_id) !== Number(user.id)).map(course => (
-              <div key={`available-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                  <h4 style={{ margin: 0 }}>{course.title}</h4>
-                  <button onClick={() => handleEnroll(course.id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enroll</button>
-                </div>
-                <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>{course.description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
 
       </div>
     </div>
