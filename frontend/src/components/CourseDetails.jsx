@@ -280,6 +280,5 @@ const CourseDetails = ({ course, user, onBack }) => {
     </div>
   );
 };
-};
 
 export default CourseDetails;

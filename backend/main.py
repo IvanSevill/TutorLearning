@@ -358,12 +358,14 @@ def delete_enrollment(user_id: int, course_id: int, db: Session = Depends(get_db
     """Unenrolls a user from a course"""
     from sqlalchemy import text
     try:
-        # Just execute the delete, don't worry about rowcount for now
+        print(f">>> BACKEND: Deleting enrollment U:{user_id} C:{course_id}")
         sql = text("DELETE FROM Enrollments WHERE user_id = :u AND course_id = :c")
-        db.execute(sql, {"u": user_id, "c": course_id})
+        result = db.execute(sql, {"u": user_id, "c": course_id})
         db.commit()
+        print(f">>> BACKEND: Rows affected: {result.rowcount}")
         return {"message": "Successfully unenrolled"}
     except Exception as e:
+        print(f">>> BACKEND ERROR: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
