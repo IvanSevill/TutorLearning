@@ -45,10 +45,8 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
   const handleUnenroll = async (courseId) => {
     if (!window.confirm("Are you sure you want to leave this course?")) return;
     try {
-      const response = await fetch(`${API_URL}/enrollments/`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id, course_id: courseId })
+      const response = await fetch(`${API_URL}/enrollments/user/${user.id}/course/${courseId}`, {
+        method: 'DELETE'
       });
       if (response.ok) {
         fetchData();
