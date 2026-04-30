@@ -2,6 +2,7 @@ import { useState } from 'react';
 import './index.css';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
+import CourseDetails from './components/CourseDetails';
 
 export const API_URL = 'http://localhost:8000';
 
@@ -10,6 +11,7 @@ function App() {
     const savedUser = localStorage.getItem('user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
+  const [selectedCourse, setSelectedCourse] = useState(null);
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -18,15 +20,26 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
+    setSelectedCourse(null);
     localStorage.removeItem('user');
   };
 
+  if (!user) return <div className="container"><Auth onLogin={handleLogin} /></div>;
+
   return (
     <div className="container">
-      {!user ? (
-        <Auth onLogin={handleLogin} />
+      {selectedCourse ? (
+        <CourseDetails 
+          course={selectedCourse} 
+          user={user} 
+          onBack={() => setSelectedCourse(null)} 
+        />
       ) : (
-        <Dashboard user={user} onLogout={handleLogout} />
+        <Dashboard 
+          user={user} 
+          onLogout={handleLogout} 
+          onSelectCourse={setSelectedCourse} 
+        />
       )}
     </div>
   );

@@ -51,6 +51,7 @@ class CourseUpdate(BaseModel):
 
 class CourseResponse(CourseBase):
     id: int
+    teacher_id: Optional[int] = None
 
     class Config:
         orm_mode = True

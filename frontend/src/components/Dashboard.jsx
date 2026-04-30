@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../App';
 
-const Dashboard = ({ user, onLogout }) => {
+const Dashboard = ({ user, onLogout, onSelectCourse }) => {
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [newCourse, setNewCourse] = useState({ title: '', description: '' });
@@ -12,10 +12,8 @@ const Dashboard = ({ user, onLogout }) => {
         fetch(`${API_URL}/courses/`),
         fetch(`${API_URL}/enrollments/user/${user.id}`)
       ]);
-      const coursesData = await coursesRes.json();
-      const enrollmentsData = await enrollmentsRes.json();
-      setCourses(coursesData);
-      setEnrollments(enrollmentsData);
+      setCourses(await coursesRes.json());
+      setEnrollments(await enrollmentsRes.json());
     } catch (err) {
       console.error("Failed to fetch dashboard data", err);
     }
@@ -41,6 +39,26 @@ const Dashboard = ({ user, onLogout }) => {
     } catch (err) {
       console.error("Enroll error:", err);
       alert("Network error during enrollment");
+    }
+  };
+
+  const handleUnenroll = async (courseId) => {
+    if (!window.confirm("Are you sure you want to leave this course?")) return;
+    try {
+      const response = await fetch(`${API_URL}/enrollments/`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, course_id: courseId })
+      });
+      if (response.ok) {
+        fetchData();
+      } else {
+        const data = await response.json();
+        alert(data.detail || "Unenrollment failed");
+      }
+    } catch (err) {
+      console.error("Unenroll error:", err);
+      alert("Network error during unenrollment");
     }
   };
 
@@ -110,10 +128,11 @@ const Dashboard = ({ user, onLogout }) => {
             </form>
             
             <div className="grid">
-              {courses.filter(c => c.teacher_id === user.id).map(course => (
+              {courses.filter(c => Number(c.teacher_id) === Number(user.id)).map(course => (
                 <div key={`teacher-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
                   <h4 style={{ margin: 0 }}>{course.title}</h4>
                   <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{course.description}</p>
+                  <button onClick={() => onSelectCourse(course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', marginTop: '10px' }}>View Details</button>
                 </div>
               ))}
             </div>
@@ -129,14 +148,17 @@ const Dashboard = ({ user, onLogout }) => {
             {enrollments.map(enrollment => (
               <div key={`enrollment-${enrollment.course_id}`} className="glass-card" style={{ padding: '1rem', borderLeft: '4px solid #10b981' }}>
                 <h4 style={{ margin: 0 }}>{enrollment.course?.title || `Course ${enrollment.course_id}`}</h4>
-                <p style={{ color: '#10b981', fontSize: '0.8rem', fontWeight: 'bold' }}>Enrolled</p>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                  <button onClick={() => onSelectCourse(enrollment.course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enter Course</button>
+                  <button onClick={() => handleUnenroll(enrollment.course_id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', background: '#ef4444' }}>Leave</button>
+                </div>
               </div>
             ))}
           </div>
 
           <h4 style={{ marginTop: '2rem' }}>Explore Available Courses</h4>
           <div className="grid">
-            {courses.filter(c => !enrolledIds.includes(c.id) && c.teacher_id !== user.id).map(course => (
+            {courses.filter(c => !enrolledIds.includes(c.id) && Number(c.teacher_id) !== Number(user.id)).map(course => (
               <div key={`available-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                   <h4 style={{ margin: 0 }}>{course.title}</h4>

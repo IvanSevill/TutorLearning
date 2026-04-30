@@ -319,6 +319,21 @@ def list_course_enrollments(course_id: int, db: Session = Depends(get_db)):
         
     return db.query(models.Enrollment).filter(models.Enrollment.course_id == course_id).all()
 
+@app.delete("/enrollments/")
+def delete_enrollment(enrollment: schemas.EnrollmentCreate, db: Session = Depends(get_db)):
+    """Unenrolls a user from a course"""
+    db_enrollment = db.query(models.Enrollment).filter(
+        models.Enrollment.user_id == enrollment.user_id,
+        models.Enrollment.course_id == enrollment.course_id
+    ).first()
+    
+    if not db_enrollment:
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+        
+    db.delete(db_enrollment)
+    db.commit()
+    return {"message": "Successfully unenrolled"}
+
 
 # ================== FILES (GCS HYBRID) ==================
 
