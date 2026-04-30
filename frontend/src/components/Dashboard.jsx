@@ -5,7 +5,8 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [newCourse, setNewCourse] = useState({ title: '', description: '' });
-  const [activeTab, setActiveTab] = useState('my-courses'); // 'my-courses' or 'explore'
+  const [activeTab, setActiveTab] = useState('my-courses');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -13,8 +14,13 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
         fetch(`${API_URL}/courses/`),
         fetch(`${API_URL}/enrollments/user/${user.id}`)
       ]);
-      setCourses(await coursesRes.json());
-      setEnrollments(await enrollmentsRes.json());
+      const coursesData = await coursesRes.json();
+      const enrollmentsData = await enrollmentsRes.json();
+      
+      console.log("Dashboard fetch:", { coursesCount: coursesData.length, userId: user.id });
+      
+      setCourses(coursesData);
+      setEnrollments(enrollmentsData);
     } catch (err) {
       console.error("Failed to fetch dashboard data", err);
     }
@@ -33,13 +39,13 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
       });
       if (response.ok) {
         fetchData();
+        alert("Enrolled successfully!");
       } else {
         const data = await response.json();
         alert(data.detail || "Enrollment failed");
       }
     } catch (err) {
       console.error("Enroll error:", err);
-      alert("Network error during enrollment");
     }
   };
 
@@ -59,6 +65,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
       });
       if (response.ok) {
         setNewCourse({ title: '', description: '' });
+        setIsModalOpen(false);
         fetchData();
       } else {
         const data = await response.json();
@@ -66,7 +73,6 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
       }
     } catch (err) {
       console.error("Create error:", err);
-      alert("Network error during course creation");
     }
   };
 
@@ -74,6 +80,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
 
   return (
     <div>
+      {/* NAVBAR */}
       <div className="navbar glass-card" style={{ padding: '0.5rem 1.5rem', marginBottom: '2rem' }}>
         <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Tutor-Learning</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
@@ -85,6 +92,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
         </div>
       </div>
 
+      {/* TABS */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
         <button 
           onClick={() => setActiveTab('my-courses')}
@@ -115,23 +123,10 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
             {/* TEACHER SECTION */}
             {user.is_teacher && (
               <section className="glass-card" style={{ borderLeft: '4px solid #6366f1' }}>
-                <h3 style={{ marginTop: 0 }}>👨‍🏫 My Taught Courses</h3>
-                <form onSubmit={handleCreateCourse} style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem' }}>
-                  <input 
-                    placeholder="Course Title" 
-                    value={newCourse.title} 
-                    onChange={e => setNewCourse({...newCourse, title: e.target.value})}
-                    required 
-                    style={{ margin: 0 }}
-                  />
-                  <input 
-                    placeholder="Description" 
-                    value={newCourse.description} 
-                    onChange={e => setNewCourse({...newCourse, description: e.target.value})}
-                    style={{ margin: 0 }}
-                  />
-                  <button type="submit" style={{ whiteSpace: 'nowrap' }}>Create New</button>
-                </form>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <h3 style={{ margin: 0 }}>👨‍🏫 My Taught Courses</h3>
+                  <button onClick={() => setIsModalOpen(true)} style={{ background: '#6366f1' }}>+ Create New Course</button>
+                </div>
                 
                 <div className="grid">
                   {courses.filter(c => Number(c.teacher_id) === Number(user.id)).map(course => (
@@ -141,6 +136,9 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                       <button onClick={() => onSelectCourse(course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', marginTop: '10px' }}>Manage Course</button>
                     </div>
                   ))}
+                  {courses.filter(c => Number(c.teacher_id) === Number(user.id)).length === 0 && (
+                    <p style={{ color: '#64748b' }}>You haven't created any courses yet.</p>
+                  )}
                 </div>
               </section>
             )}
@@ -167,7 +165,9 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
           <section className="glass-card">
             <h3 style={{ marginTop: 0 }}>🌍 Discover Courses</h3>
             <div className="grid">
-              {courses.filter(c => !enrolledIds.includes(c.id) && Number(c.teacher_id) !== Number(user.id)).map(course => (
+              {courses
+                .filter(c => !enrolledIds.includes(c.id) && Number(c.teacher_id) !== Number(user.id))
+                .map(course => (
                 <div key={`available-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                     <h4 style={{ margin: 0 }}>{course.title}</h4>
@@ -182,8 +182,44 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
             </div>
           </section>
         )}
-
       </div>
+
+      {/* CREATE COURSE MODAL (Toast-style) */}
+      {isModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="glass-card" style={{ width: '90%', maxWidth: '500px', padding: '2rem', background: 'white' }}>
+            <h3 style={{ marginTop: 0 }}>New Course</h3>
+            <form onSubmit={handleCreateCourse}>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Title</label>
+                <input 
+                  placeholder="Course Title" 
+                  value={newCourse.title} 
+                  onChange={e => setNewCourse({...newCourse, title: e.target.value})}
+                  required 
+                />
+              </div>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Description</label>
+                <textarea 
+                  placeholder="What is this course about?" 
+                  value={newCourse.description} 
+                  onChange={e => setNewCourse({...newCourse, description: e.target.value})}
+                  style={{ width: '100%', minHeight: '100px' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button type="submit" style={{ flex: 1 }}>Create Course</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} style={{ flex: 1, background: '#64748b' }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
