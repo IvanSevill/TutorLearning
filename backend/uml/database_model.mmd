@@ -1,0 +1,75 @@
+---
+id: 7901248d-5f39-433b-aa4d-035c889f647c
+---
+erDiagram
+    Users {
+        int id PK
+        varchar first_name
+        varchar last_name
+        varchar email "Unique"
+        tinyint is_teacher
+        varchar password_hash
+    }
+    
+    Courses {
+        int id PK
+        varchar title
+        text description
+        tinyint is_visible
+        tinyint is_enrollable
+    }
+    
+    Enrollments {
+        int user_id PK, FK
+        int course_id PK, FK
+        datetime enrollment_date
+    }
+    
+    Assignments {
+        int id PK
+        int course_id FK
+        varchar title
+        text description
+        datetime due_date
+    }
+    
+    AssignmentSubmissions {
+        int user_id PK, FK
+        int assignment_id PK, FK
+        datetime submission_date
+        decimal grade
+        varchar submission_file_url
+    }
+    
+    Files {
+        int id PK
+        int course_id FK
+        varchar file_name
+        varchar mime_type
+        varchar gcs_url
+        datetime upload_date
+    }
+    
+    TextBlocks {
+        int id PK
+        int course_id FK
+        varchar title
+        text content
+    }
+    
+    EmailQueue {
+        int id PK
+        varchar recipient_email
+        varchar subject
+        text body
+        enum status
+        timestamp created_at
+    }
+    
+    Users ||--o{ Enrollments : "makes"
+    Courses ||--o{ Enrollments : "has"
+    Courses ||--o{ Assignments : "contains"
+    Courses ||--o{ Files : "contains"
+    Courses ||--o{ TextBlocks : "contains"
+    Users ||--o{ AssignmentSubmissions : "submits"
+    Assignments ||--o{ AssignmentSubmissions : "receives"
