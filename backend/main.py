@@ -353,9 +353,9 @@ def list_course_enrollments(course_id: int, db: Session = Depends(get_db)):
         
     return db.query(models.Enrollment).filter(models.Enrollment.course_id == course_id).all()
 
-@app.delete("/enrollments/leave")
+@app.post("/api/unenroll")
 def unenroll_user(user_id: int, course_id: int, db: Session = Depends(get_db)):
-    """Unenrolls a user from a course using query parameters"""
+    """Unenrolls a user from a course (POST for better compatibility)"""
     try:
         db.query(models.Enrollment).filter(
             models.Enrollment.user_id == user_id,

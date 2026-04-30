@@ -217,7 +217,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                         if (!window.confirm("Leave this course?")) return;
                         console.log("Unenrolling:", { userId: user.id, courseId: enrollment.course_id });
                         try {
-                          const res = await fetch(`${API_URL}/enrollments/leave?user_id=${user.id}&course_id=${enrollment.course_id}`, { method: 'DELETE' });
+                          const res = await fetch(`${API_URL}/api/unenroll?user_id=${user.id}&course_id=${enrollment.course_id}`, { method: 'POST' });
                           if (res.ok) {
                             fetchData();
                           } else {

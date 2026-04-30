@@ -94,8 +94,8 @@ const CourseDetails = ({ course, user, onBack }) => {
   const handleUnenroll = async () => {
     if (!window.confirm("Are you sure you want to leave this course?")) return;
     try {
-      const response = await fetch(`${API_URL}/enrollments/user/${user.id}/course/${course.id}`, {
-        method: 'DELETE'
+      const response = await fetch(`${API_URL}/api/unenroll?user_id=${user.id}&course_id=${course.id}`, {
+        method: 'POST'
       });
       if (response.ok) {
         onBack();
