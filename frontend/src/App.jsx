@@ -4,7 +4,7 @@ import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
 import CourseDetails from './components/CourseDetails';
 
-export const API_URL = 'http://localhost:8000';
+import { API_URL } from './constants';
 
 function App() {
   const [user, setUser] = useState(() => {

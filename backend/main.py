@@ -130,6 +130,27 @@ def list_all_courses(db: Session = Depends(get_db)):
     """Lists all courses"""
     return db.query(models.Course).all()
 
+@app.get("/courses/teacher/{teacher_id}", response_model=list[schemas.CourseResponse])
+def list_teacher_courses(teacher_id: int, db: Session = Depends(get_db)):
+    """Lists all courses created by a specific teacher"""
+    return db.query(models.Course).filter(models.Course.teacher_id == teacher_id).all()
+
+@app.get("/courses/available/{user_id}", response_model=list[schemas.CourseResponse])
+def list_available_courses(user_id: int, db: Session = Depends(get_db)):
+    """Returns courses a user can enroll in: visible, enrollable, not owned by them, and not already enrolled"""
+    # Get courses the user is already enrolled in
+    enrolled_course_ids = [
+        e.course_id for e in db.query(models.Enrollment.course_id)
+            .filter(models.Enrollment.user_id == user_id).all()
+    ]
+    
+    return db.query(models.Course).filter(
+        models.Course.is_visible == True,
+        models.Course.is_enrollable == True,
+        models.Course.teacher_id != user_id,
+        ~models.Course.id.in_(enrolled_course_ids)
+    ).all()
+
 @app.delete("/courses/{course_id}")
 def delete_course(course_id: int, db: Session = Depends(get_db)):
     db_course = db.query(models.Course).filter(models.Course.id == course_id).first()
@@ -163,6 +184,11 @@ async def update_course_image(course_id: int, file: UploadFile = File(...), db: 
     db.commit()
     db.refresh(course)
     return {"image_url": public_url}
+
+@app.get("/courses/teacher/{teacher_id}", response_model=list[schemas.CourseResponse])
+def get_teacher_courses(teacher_id: int, db: Session = Depends(get_db)):
+    """Retrieves all courses created by a specific teacher"""
+    return db.query(models.Course).filter(models.Course.teacher_id == teacher_id).all()
 
 @app.get("/courses/{course_id}", response_model=schemas.CourseResponse)
 def get_course(course_id: int, db: Session = Depends(get_db)):
@@ -353,22 +379,59 @@ def list_course_enrollments(course_id: int, db: Session = Depends(get_db)):
         
     return db.query(models.Enrollment).filter(models.Enrollment.course_id == course_id).all()
 
-@app.post("/api/unenroll")
-def unenroll_user(user_id: int, course_id: int, db: Session = Depends(get_db)):
-    """Unenrolls a user from a course (POST for better compatibility)"""
+@app.delete("/enrollments/")
+def unenroll_user(enrollment: schemas.EnrollmentCreate, db: Session = Depends(get_db)):
+    """Unenrolls a user from a course"""
+    print(f"DEBUG: Unenrolling user_id={enrollment.user_id} from course_id={enrollment.course_id}")
     try:
-        db.query(models.Enrollment).filter(
-            models.Enrollment.user_id == user_id,
-            models.Enrollment.course_id == course_id
-        ).delete()
+        # Delete related assignment submissions to prevent constraint violations
+        db.query(models.AssignmentSubmission).filter(
+            models.AssignmentSubmission.user_id == enrollment.user_id,
+            models.AssignmentSubmission.assignment_id.in_(
+                db.query(models.Assignment.id).filter(models.Assignment.course_id == enrollment.course_id)
+            )
+        ).delete(synchronize_session=False)
+
+        # Delete the enrollment
+        deleted_count = db.query(models.Enrollment).filter(
+            models.Enrollment.user_id == enrollment.user_id,
+            models.Enrollment.course_id == enrollment.course_id
+        ).delete(synchronize_session=False)
+        
         db.commit()
-        return {"message": "Successfully unenrolled"}
+        print(f"DEBUG: Successfully deleted {deleted_count} enrollment(s)")
+        
+        if deleted_count == 0:
+            return {"message": "No enrollment found to delete", "status": "no_change"}
+            
+        return {"message": "Successfully unenrolled", "status": "success"}
     except Exception as e:
         db.rollback()
+        print(f"ERROR: Unenrollment failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # ================== FILES (GCS HYBRID) ==================
+
+@app.post("/files/upload")
+def upload_generic_file(file: UploadFile = File(...)):
+    """Uploads a generic file to GCS and returns its public URL"""
+    try:
+        contents = file.file.read()
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'bin'
+        unique_name = f"{uuid.uuid4()}.{file_extension}"
+        destination_path = f"files/uploads/{unique_name}"
+        
+        public_url = gcs_db.upload_file(contents, destination_path, file.content_type)
+        
+        return {"url": public_url, "filename": file.filename, "content_type": file.content_type}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+
+@app.get("/files/course/{course_id}", response_model=list[schemas.FileResponse])
+def get_course_files(course_id: int, db: Session = Depends(get_db)):
+    """Retrieves all files associated with a course"""
+    return db.query(models.File).filter(models.File.course_id == course_id).all()
 
 @app.post("/files/course/{course_id}", response_model=schemas.FileResponse)
 def upload_course_file(course_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):

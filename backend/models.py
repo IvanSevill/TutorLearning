@@ -52,6 +52,7 @@ class Assignment(Base):
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     due_date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=text("CURRENT_TIMESTAMP"))
 
     course = relationship("Course", back_populates="assignments")
     submissions = relationship("AssignmentSubmission", back_populates="assignment")
@@ -87,6 +88,7 @@ class TextBlock(Base):
     course_id = Column(Integer, ForeignKey("Courses.id"), nullable=False)
     title = Column(String(200), nullable=True)
     content = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=text("CURRENT_TIMESTAMP"))
 
     course = relationship("Course", back_populates="text_blocks")
 

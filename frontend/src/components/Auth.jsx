@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { API_URL } from '../App';
+import { API_URL } from '../constants';
 
 const Auth = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);

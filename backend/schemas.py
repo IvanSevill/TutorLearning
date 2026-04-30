@@ -53,6 +53,7 @@ class CourseUpdate(BaseModel):
 class CourseResponse(CourseBase):
     id: int
     teacher_id: Optional[int] = None
+    teacher: Optional[UserResponse] = None
 
     class Config:
         orm_mode = True
@@ -89,7 +90,7 @@ class AssignmentBase(BaseModel):
     due_date: Optional[datetime] = None
 
 class AssignmentCreate(AssignmentBase):
-    pass
+    course_id: int
 
 class AssignmentUpdate(BaseModel):
     title: Optional[str] = None
@@ -111,6 +112,7 @@ class AssignmentSubmissionBase(BaseModel):
 
 class AssignmentSubmissionCreate(AssignmentSubmissionBase):
     assignment_id: int
+    user_id: int
 
 class AssignmentSubmissionUpdate(BaseModel):
     grade: Optional[float] = None
