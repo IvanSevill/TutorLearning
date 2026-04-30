@@ -146,7 +146,11 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                 </div>
                 
                 <div className="grid">
-                  {courses.filter(c => Number(c.teacher_id) === Number(user.id)).map(course => (
+                  {courses.filter(c => {
+                    const match = Number(c.teacher_id) === Number(user.id);
+                    if (!match && user.is_teacher) console.log("Filter mismatch:", { courseId: c.id, cTeacher: c.teacher_id, userId: user.id });
+                    return match;
+                  }).map(course => (
                     <div 
                       key={`teacher-course-${course.id}`} 
                       className="glass-card" 
@@ -155,8 +159,11 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                         padding: 0, 
                         cursor: 'pointer', 
                         overflow: 'hidden',
-                        position: 'relative'
+                        position: 'relative',
+                        transition: 'transform 0.2s'
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                     >
                       <div style={{ height: '120px', background: course.image_url ? `url(${course.image_url})` : 'linear-gradient(135deg, #6366f1, #a855f7)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
                       <div style={{ padding: '1rem' }}>
@@ -165,7 +172,8 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                       </div>
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleDeleteCourse(course.id); }} 
-                        style={{ position: 'absolute', top: '10px', right: '10px', padding: '0.25rem 0.5rem', background: 'rgba(239, 68, 68, 0.8)', border: 'none' }}
+                        style={{ position: 'absolute', top: '10px', right: '10px', padding: '0.25rem 0.5rem', background: 'rgba(239, 68, 68, 0.9)', border: 'none', borderRadius: '4px', zIndex: 10 }}
+                        title="Delete Course"
                       >
                         🗑️
                       </button>
@@ -191,13 +199,29 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                       padding: 0, 
                       cursor: 'pointer', 
                       overflow: 'hidden',
-                      borderLeft: '4px solid #10b981'
+                      position: 'relative',
+                      borderLeft: '4px solid #10b981',
+                      transition: 'transform 0.2s'
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                   >
                     <div style={{ height: '100px', background: enrollment.course?.image_url ? `url(${enrollment.course.image_url})` : 'linear-gradient(135deg, #10b981, #34d399)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
                     <div style={{ padding: '1rem' }}>
                       <h4 style={{ margin: 0 }}>{enrollment.course?.title || `Course ${enrollment.course_id}`}</h4>
                     </div>
+                    {/* Move leave logic to a small button on the card too for convenience */}
+                    <button 
+                      onClick={async (e) => { 
+                        e.stopPropagation(); 
+                        if (!window.confirm("Leave this course?")) return;
+                        const res = await fetch(`${API_URL}/enrollments/user/${user.id}/course/${enrollment.course_id}`, { method: 'DELETE' });
+                        if (res.ok) fetchData();
+                      }} 
+                      style={{ position: 'absolute', top: '10px', right: '10px', padding: '0.25rem 0.5rem', background: 'rgba(239, 68, 68, 0.8)', border: 'none', fontSize: '0.7rem' }}
+                    >
+                      Leave
+                    </button>
                   </div>
                 ))}
                 {enrollments.length === 0 && <p style={{ color: '#64748b' }}>No enrollments yet.</p>}
@@ -216,18 +240,25 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                 <div 
                   key={`available-course-${course.id}`} 
                   className="glass-card" 
-                  onClick={() => handleEnroll(course.id)}
+                  onClick={async () => {
+                    if (window.confirm(`Do you want to enroll in ${course.title}?`)) {
+                      handleEnroll(course.id);
+                    }
+                  }}
                   style={{ 
                     padding: 0, 
                     cursor: 'pointer', 
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    transition: 'transform 0.2s'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
                   <div style={{ height: '120px', background: course.image_url ? `url(${course.image_url})` : 'linear-gradient(135deg, #64748b, #94a3b8)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
                   <div style={{ padding: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                       <h4 style={{ margin: 0 }}>{course.title}</h4>
-                      <span className="role-badge" style={{ fontSize: '0.6rem' }}>Enroll</span>
+                      <span className="role-badge" style={{ fontSize: '0.6rem' }}>Enroll Now</span>
                     </div>
                     <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem' }}>{course.description}</p>
                   </div>
