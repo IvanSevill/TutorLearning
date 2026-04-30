@@ -353,19 +353,17 @@ def list_course_enrollments(course_id: int, db: Session = Depends(get_db)):
         
     return db.query(models.Enrollment).filter(models.Enrollment.course_id == course_id).all()
 
-@app.delete("/enrollments/user/{user_id}/course/{course_id}")
-def delete_enrollment(user_id: int, course_id: int, db: Session = Depends(get_db)):
-    """Unenrolls a user from a course"""
-    from sqlalchemy import text
+@app.delete("/enrollments/leave")
+def unenroll_user(user_id: int, course_id: int, db: Session = Depends(get_db)):
+    """Unenrolls a user from a course using query parameters"""
     try:
-        print(f">>> BACKEND: Deleting enrollment U:{user_id} C:{course_id}")
-        sql = text("DELETE FROM Enrollments WHERE user_id = :u AND course_id = :c")
-        result = db.execute(sql, {"u": user_id, "c": course_id})
+        db.query(models.Enrollment).filter(
+            models.Enrollment.user_id == user_id,
+            models.Enrollment.course_id == course_id
+        ).delete()
         db.commit()
-        print(f">>> BACKEND: Rows affected: {result.rowcount}")
         return {"message": "Successfully unenrolled"}
     except Exception as e:
-        print(f">>> BACKEND ERROR: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 

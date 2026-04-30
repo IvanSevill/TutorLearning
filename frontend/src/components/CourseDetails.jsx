@@ -26,9 +26,10 @@ const CourseDetails = ({ course, user, onBack }) => {
 
       setFeed(combined);
 
-      if (user.is_teacher && course.teacher_id === user.id) {
+      // Allow both teachers and students to see the list if requested, but mainly fix the ID comparison
+      if (Number(course.teacher_id) === Number(user.id) || !user.is_teacher) {
         const stdRes = await fetch(`${API_URL}/enrollments/course/${course.id}`);
-        setStudents(await stdRes.json());
+        if (stdRes.ok) setStudents(await stdRes.json());
       }
     } catch (err) {
       console.error("Error fetching details", err);
@@ -148,10 +149,13 @@ const CourseDetails = ({ course, user, onBack }) => {
           </div>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             {isOwner && (
-              <label style={{ background: '#6366f1', color: 'white', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                {uploading ? 'Updating...' : '📸 Change Image'}
-                <input type="file" hidden onChange={handleImageUpload} accept="image/*" />
-              </label>
+              <>
+                <button onClick={() => { if(window.confirm("DELETE this course permanently?")) fetch(`${API_URL}/courses/${course.id}`, {method:'DELETE'}).then(()=>onBack()) }} style={{ background: '#ef4444', padding: '0.5rem 1rem', fontSize: '0.8rem' }}>🗑️ Delete Course</button>
+                <label style={{ background: '#6366f1', color: 'white', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                  {uploading ? 'Updating...' : '📸 Change Image'}
+                  <input type="file" hidden onChange={handleImageUpload} accept="image/*" />
+                </label>
+              </>
             )}
             {!user.is_teacher && !hasAssignments && (
               <button onClick={handleUnenroll} style={{ background: '#ef4444', padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Leave Course</button>
