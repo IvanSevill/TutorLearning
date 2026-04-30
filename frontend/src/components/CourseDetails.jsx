@@ -108,6 +108,30 @@ const CourseDetails = ({ course, user, onBack }) => {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await fetch(`${API_URL}/courses/${course.id}/image`, {
+        method: 'PATCH',
+        body: formData
+      });
+      if (response.ok) {
+        alert("Image updated!");
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Image upload error", err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div>
       <div className="navbar glass-card" style={{ padding: '0.5rem 1.5rem', marginBottom: '2rem' }}>
@@ -116,6 +140,12 @@ const CourseDetails = ({ course, user, onBack }) => {
           <h2 style={{ margin: 0 }}>{course.title}</h2>
         </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {isOwner && (
+            <label style={{ background: '#6366f1', color: 'white', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem' }}>
+              {uploading ? 'Updating...' : '📸 Change Image'}
+              <input type="file" hidden onChange={handleImageUpload} accept="image/*" />
+            </label>
+          )}
           {!user.is_teacher && !hasAssignments && (
             <button onClick={handleUnenroll} style={{ background: '#ef4444', padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Leave Course</button>
           )}

@@ -26,6 +26,7 @@ class Course(Base):
     is_visible = Column(Boolean, nullable=False, default=True)
     is_enrollable = Column(Boolean, nullable=False, default=True)
     teacher_id = Column(Integer, ForeignKey("Users.id"), nullable=True)
+    image_url = Column(String(500), nullable=True)
 
     teacher = relationship("User")
     enrollments = relationship("Enrollment", back_populates="course")

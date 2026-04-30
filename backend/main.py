@@ -146,6 +146,24 @@ def delete_course(course_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Course and all related data deleted"}
 
+@app.patch("/courses/{course_id}/image")
+async def update_course_image(course_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Read file contents
+    contents = await file.read()
+    
+    # Upload to GCS
+    destination_path = f"courses/{course_id}/cover_{uuid.uuid4()}_{file.filename}"
+    public_url = gcs_db.upload_file(contents, destination_path, file.content_type)
+    
+    course.image_url = public_url
+    db.commit()
+    db.refresh(course)
+    return {"image_url": public_url}
+
 @app.get("/courses/{course_id}", response_model=schemas.CourseResponse)
 def get_course(course_id: int, db: Session = Depends(get_db)):
     course = db.query(models.Course).filter(models.Course.id == course_id).first()

@@ -39,6 +39,7 @@ class CourseBase(BaseModel):
     description: Optional[str] = None
     is_visible: bool = True
     is_enrollable: bool = True
+    image_url: Optional[str] = None
 
 class CourseCreate(CourseBase):
     teacher_id: Optional[int] = None

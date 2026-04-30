@@ -147,13 +147,28 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                 
                 <div className="grid">
                   {courses.filter(c => Number(c.teacher_id) === Number(user.id)).map(course => (
-                    <div key={`teacher-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
-                      <h4 style={{ margin: 0 }}>{course.title}</h4>
-                      <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{course.description}</p>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                        <button onClick={() => onSelectCourse(course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', flex: 1 }}>Manage</button>
-                        <button onClick={() => handleDeleteCourse(course.id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', background: '#ef4444' }}>🗑️</button>
+                    <div 
+                      key={`teacher-course-${course.id}`} 
+                      className="glass-card" 
+                      onClick={() => onSelectCourse(course)}
+                      style={{ 
+                        padding: 0, 
+                        cursor: 'pointer', 
+                        overflow: 'hidden',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ height: '120px', background: course.image_url ? `url(${course.image_url})` : 'linear-gradient(135deg, #6366f1, #a855f7)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                      <div style={{ padding: '1rem' }}>
+                        <h4 style={{ margin: 0 }}>{course.title}</h4>
+                        <p style={{ color: '#64748b', fontSize: '0.8rem', margin: '5px 0' }}>{course.description}</p>
                       </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDeleteCourse(course.id); }} 
+                        style={{ position: 'absolute', top: '10px', right: '10px', padding: '0.25rem 0.5rem', background: 'rgba(239, 68, 68, 0.8)', border: 'none' }}
+                      >
+                        🗑️
+                      </button>
                     </div>
                   ))}
                   {courses.filter(c => Number(c.teacher_id) === Number(user.id)).length === 0 && (
@@ -168,10 +183,20 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
               <h3 style={{ marginTop: 0 }}>🎓 My Enrolled Courses</h3>
               <div className="grid">
                 {enrollments.map(enrollment => (
-                  <div key={`enrollment-${enrollment.course_id}`} className="glass-card" style={{ padding: '1rem', borderLeft: '4px solid #10b981' }}>
-                    <h4 style={{ margin: 0 }}>{enrollment.course?.title || `Course ${enrollment.course_id}`}</h4>
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                      <button onClick={() => onSelectCourse(enrollment.course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enter</button>
+                  <div 
+                    key={`enrollment-${enrollment.course_id}`} 
+                    className="glass-card" 
+                    onClick={() => onSelectCourse(enrollment.course)}
+                    style={{ 
+                      padding: 0, 
+                      cursor: 'pointer', 
+                      overflow: 'hidden',
+                      borderLeft: '4px solid #10b981'
+                    }}
+                  >
+                    <div style={{ height: '100px', background: enrollment.course?.image_url ? `url(${enrollment.course.image_url})` : 'linear-gradient(135deg, #10b981, #34d399)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                    <div style={{ padding: '1rem' }}>
+                      <h4 style={{ margin: 0 }}>{enrollment.course?.title || `Course ${enrollment.course_id}`}</h4>
                     </div>
                   </div>
                 ))}
@@ -188,12 +213,24 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
               {courses
                 .filter(c => !enrolledIds.includes(c.id) && Number(c.teacher_id) !== Number(user.id))
                 .map(course => (
-                <div key={`available-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                    <h4 style={{ margin: 0 }}>{course.title}</h4>
-                    <button onClick={() => handleEnroll(course.id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enroll Now</button>
+                <div 
+                  key={`available-course-${course.id}`} 
+                  className="glass-card" 
+                  onClick={() => handleEnroll(course.id)}
+                  style={{ 
+                    padding: 0, 
+                    cursor: 'pointer', 
+                    overflow: 'hidden'
+                  }}
+                >
+                  <div style={{ height: '120px', background: course.image_url ? `url(${course.image_url})` : 'linear-gradient(135deg, #64748b, #94a3b8)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                  <div style={{ padding: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <h4 style={{ margin: 0 }}>{course.title}</h4>
+                      <span className="role-badge" style={{ fontSize: '0.6rem' }}>Enroll</span>
+                    </div>
+                    <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem' }}>{course.description}</p>
                   </div>
-                  <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>{course.description}</p>
                 </div>
               ))}
               {courses.filter(c => !enrolledIds.includes(c.id) && Number(c.teacher_id) !== Number(user.id)).length === 0 && (
