@@ -97,13 +97,39 @@ const CourseDetails = ({ course, user, onBack }) => {
   };
 
   const isOwner = user.is_teacher && Number(course.teacher_id) === Number(user.id);
+  const hasAssignments = feed.some(item => item.type === 'assignment');
+
+  const handleUnenroll = async () => {
+    if (!window.confirm("Are you sure you want to leave this course?")) return;
+    try {
+      const response = await fetch(`${API_URL}/enrollments/user/${user.id}/course/${course.id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        onBack();
+      } else {
+        const data = await response.json();
+        alert(data.detail || "Unenrollment failed");
+      }
+    } catch (err) {
+      console.error("Unenroll error:", err);
+      alert("Network error during unenrollment");
+    }
+  };
 
   return (
     <div>
       <div className="navbar glass-card" style={{ padding: '0.5rem 1.5rem', marginBottom: '2rem' }}>
-        <button onClick={onBack} style={{ background: '#64748b' }}>← Back</button>
-        <h2 style={{ margin: 0 }}>{course.title}</h2>
-        <div className="role-badge">Course Feed</div>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button onClick={onBack} style={{ background: '#64748b' }}>← Back</button>
+          <h2 style={{ margin: 0 }}>{course.title}</h2>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {!user.is_teacher && !hasAssignments && (
+            <button onClick={handleUnenroll} style={{ background: '#ef4444', padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Leave Course</button>
+          )}
+          <div className="role-badge">Course Feed</div>
+        </div>
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: '1fr 300px', alignItems: 'start' }}>

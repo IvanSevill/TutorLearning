@@ -43,24 +43,6 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
     }
   };
 
-  const handleUnenroll = async (courseId) => {
-    if (!window.confirm("Are you sure you want to leave this course?")) return;
-    try {
-      const response = await fetch(`${API_URL}/enrollments/user/${user.id}/course/${courseId}`, {
-        method: 'DELETE'
-      });
-      if (response.ok) {
-        fetchData();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Unenrollment failed");
-      }
-    } catch (err) {
-      console.error("Unenroll error:", err);
-      alert("Network error during unenrollment");
-    }
-  };
-
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     try {
@@ -172,7 +154,6 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                     <h4 style={{ margin: 0 }}>{enrollment.course?.title || `Course ${enrollment.course_id}`}</h4>
                     <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                       <button onClick={() => onSelectCourse(enrollment.course)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enter</button>
-                      <button onClick={() => handleUnenroll(enrollment.course_id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', background: '#ef4444' }}>Leave</button>
                     </div>
                   </div>
                 ))}
