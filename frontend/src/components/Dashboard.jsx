@@ -215,10 +215,20 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                       onClick={async (e) => { 
                         e.stopPropagation(); 
                         if (!window.confirm("Leave this course?")) return;
-                        const res = await fetch(`${API_URL}/enrollments/user/${user.id}/course/${enrollment.course_id}`, { method: 'DELETE' });
-                        if (res.ok) fetchData();
+                        console.log("Unenrolling:", { userId: user.id, courseId: enrollment.course_id });
+                        try {
+                          const res = await fetch(`${API_URL}/enrollments/user/${user.id}/course/${enrollment.course_id}`, { method: 'DELETE' });
+                          if (res.ok) {
+                            fetchData();
+                          } else {
+                            const data = await res.json();
+                            alert(data.detail || "Unenroll failed");
+                          }
+                        } catch (err) {
+                          console.error("Unenroll error", err);
+                        }
                       }} 
-                      style={{ position: 'absolute', top: '10px', right: '10px', padding: '0.25rem 0.5rem', background: 'rgba(239, 68, 68, 0.8)', border: 'none', fontSize: '0.7rem' }}
+                      style={{ position: 'absolute', top: '10px', right: '10px', padding: '0.25rem 0.5rem', background: 'rgba(239, 68, 68, 0.8)', border: 'none', fontSize: '0.7rem', color: 'white', borderRadius: '4px' }}
                     >
                       Leave
                     </button>
