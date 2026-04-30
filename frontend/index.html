@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor-Learning MVP</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; line-height: 1.6; }
+        .card { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+        .hidden { display: none; }
+        .error { color: red; }
+        .success { color: green; }
+        button { cursor: pointer; padding: 5px 10px; }
+        input { margin-bottom: 10px; display: block; padding: 5px; width: 100%; box-sizing: border-box; }
+        nav { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; margin-bottom: 20px; padding-bottom: 10px; }
+        .role-tag { background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-section">
+        <div class="card" id="login-card">
+            <h2>Login</h2>
+            <input type="email" id="login-email" placeholder="Email">
+            <input type="password" id="login-password" placeholder="Password">
+            <button onclick="login()">Login</button>
+            <p>Don't have an account? <a href="#" onclick="toggleAuth()">Register here</a></p>
+        </div>
+
+        <div class="card hidden" id="register-card">
+            <h2>Register</h2>
+            <input type="text" id="reg-fname" placeholder="First Name">
+            <input type="text" id="reg-lname" placeholder="Last Name">
+            <input type="email" id="reg-email" placeholder="Email">
+            <input type="password" id="reg-password" placeholder="Password">
+            <label><input type="checkbox" id="reg-teacher" style="display: inline; width: auto;"> Register as Teacher</label>
+            <button onclick="register()">Register</button>
+            <p>Already have an account? <a href="#" onclick="toggleAuth()">Login here</a></p>
+        </div>
+        <p id="auth-msg" class="error"></p>
+    </div>
+
+    <div id="main-section" class="hidden">
+        <nav>
+            <div>
+                <strong id="user-display"></strong> 
+                <span id="user-role" class="role-tag"></span>
+            </div>
+            <button onclick="logout()">Logout</button>
+        </nav>
+
+        <div id="teacher-view" class="hidden">
+            <h3>Teacher Panel</h3>
+            <div class="card">
+                <h4>Create New Course</h4>
+                <input type="text" id="course-title" placeholder="Course Title">
+                <textarea id="course-desc" placeholder="Description" style="width: 100%; margin-bottom:10px;"></textarea>
+                <button onclick="createCourse()">Create Course</button>
+            </div>
+            <h4>My Courses</h4>
+            <div id="teacher-courses-list"></div>
+        </div>
+
+        <div id="student-view">
+            <h3>Student Dashboard</h3>
+            <div class="card">
+                <h4>Available Courses</h4>
+                <div id="available-courses-list"></div>
+            </div>
+            <h4>My Enrolled Courses</h4>
+            <div id="my-enrollments-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let currentUser = null;
+
+        function toggleAuth() {
+            document.getElementById('login-card').classList.toggle('hidden');
+            document.getElementById('register-card').classList.toggle('hidden');
+            document.getElementById('auth-msg').textContent = '';
+        }
+
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/login/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    currentUser = data.user;
+                    showDashboard();
+                } else {
+                    document.getElementById('auth-msg').textContent = data.detail || 'Login failed';
+                }
+            } catch (err) {
+                document.getElementById('auth-msg').textContent = 'Server unreachable';
+            }
+        }
+
+        async function register() {
+            const user = {
+                first_name: document.getElementById('reg-fname').value,
+                last_name: document.getElementById('reg-lname').value,
+                email: document.getElementById('reg-email').value,
+                password: document.getElementById('reg-password').value,
+                is_teacher: document.getElementById('reg-teacher').checked
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/users/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(user)
+                });
+                
+                if (response.ok) {
+                    alert('Registration successful! Please login.');
+                    toggleAuth();
+                } else {
+                    const data = await response.json();
+                    document.getElementById('auth-msg').textContent = data.detail || 'Registration failed';
+                }
+            } catch (err) {
+                document.getElementById('auth-msg').textContent = 'Server unreachable';
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('auth-section').classList.remove('hidden');
+            document.getElementById('main-section').classList.add('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('main-section').classList.remove('hidden');
+            document.getElementById('user-display').textContent = `${currentUser.first_name} ${currentUser.last_name}`;
+            document.getElementById('user-role').textContent = currentUser.is_teacher ? 'Teacher' : 'Student';
+
+            if (currentUser.is_teacher) {
+                document.getElementById('teacher-view').classList.remove('hidden');
+                loadTeacherData();
+            } else {
+                document.getElementById('teacher-view').classList.add('hidden');
+            }
+            loadStudentData();
+        }
+
+        async function loadTeacherData() {
+            // In a real app, we'd filter courses by teacher_id, but here we just list all for simplicity
+            const res = await fetch(`${API_URL}/courses/`);
+            const courses = await res.json();
+            const list = document.getElementById('teacher-courses-list');
+            list.innerHTML = courses.map(c => `
+                <div class="card">
+                    <strong>${c.title}</strong><br>
+                    <small>${c.description || 'No description'}</small>
+                </div>
+            `).join('');
+        }
+
+        async function loadStudentData() {
+            const res = await fetch(`${API_URL}/courses/`);
+            const allCourses = await res.json();
+            
+            const res2 = await fetch(`${API_URL}/enrollments/user/${currentUser.id}`);
+            const myEnrollments = await res2.json();
+            const enrolledIds = myEnrollments.map(e => e.course_id);
+
+            const availableList = document.getElementById('available-courses-list');
+            availableList.innerHTML = allCourses
+                .filter(c => !enrolledIds.includes(c.id))
+                .map(c => `
+                    <div class="card">
+                        <strong>${c.title}</strong>
+                        <button onclick="enroll(${c.id})" style="float:right">Enroll</button>
+                    </div>
+                `).join('');
+
+            const myEnrollList = document.getElementById('my-enrollments-list');
+            myEnrollList.innerHTML = myEnrollments.map(e => `
+                <div class="card">
+                    <strong>${e.course ? e.course.title : 'Course ' + e.course_id}</strong>
+                </div>
+            `).join('');
+        }
+
+        async function enroll(courseId) {
+            try {
+                const response = await fetch(`${API_URL}/enrollments/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentUser.id, course_id: courseId })
+                });
+                if (response.ok) {
+                    loadStudentData();
+                } else {
+                    const data = await response.json();
+                    alert(data.detail);
+                }
+            } catch (err) { alert('Enrollment failed'); }
+        }
+
+        async function createCourse() {
+            const title = document.getElementById('course-title').value;
+            const description = document.getElementById('course-desc').value;
+            
+            const response = await fetch(`${API_URL}/courses/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, description, is_visible: true, is_enrollable: true })
+            });
+            
+            if (response.ok) {
+                document.getElementById('course-title').value = '';
+                document.getElementById('course-desc').value = '';
+                loadTeacherData();
+                loadStudentData();
+            }
+        }
+    </script>
+</body>
+</html>
