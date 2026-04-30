@@ -1,7 +1,2 @@
-// Detect if we are in local development
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-// If local, use the default FastAPI port. Otherwise, assume the backend is on the same origin (production).
-export const API_URL = isLocal 
-  ? 'http://localhost:8000' 
-  : window.location.origin;
+// Using the deployed Cloud Run backend
+export const API_URL = 'https://tutor-learning-backend-287761062891.europe-southwest1.run.app';
