@@ -117,7 +117,8 @@ def create_course(course: schemas.CourseCreate, db: Session = Depends(get_db)):
         title=course.title,
         description=course.description,
         is_visible=course.is_visible,
-        is_enrollable=course.is_enrollable
+        is_enrollable=course.is_enrollable,
+        teacher_id=course.teacher_id
     )
     db.add(db_course)
     db.commit()
@@ -273,6 +274,9 @@ def create_enrollment(enrollment: schemas.EnrollmentCreate, db: Session = Depend
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
+    if course.teacher_id == enrollment.user_id:
+        raise HTTPException(status_code=400, detail="You cannot enroll in your own course")
+
     existing = db.query(models.Enrollment).filter(
         models.Enrollment.user_id == enrollment.user_id,
         models.Enrollment.course_id == enrollment.course_id

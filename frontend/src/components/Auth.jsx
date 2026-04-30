@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { API_URL } from '../App';
 
 const Auth = ({ onLogin }) => {
@@ -23,12 +23,19 @@ const Auth = ({ onLogin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    console.log("Submitting Auth form", { isLogin, email: formData.email });
     
     try {
       const endpoint = isLogin ? '/login/' : '/users/';
       const body = isLogin 
         ? { email: formData.email, password: formData.password }
-        : { ...formData };
+        : { 
+            first_name: formData.first_name, 
+            last_name: formData.last_name, 
+            email: formData.email, 
+            password: formData.password, 
+            is_teacher: formData.is_teacher 
+          };
 
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
@@ -45,9 +52,11 @@ const Auth = ({ onLogin }) => {
           setIsLogin(true);
         }
       } else {
+        console.error("Auth error response:", data);
         setError(data.detail || 'Operation failed');
       }
     } catch (err) {
+      console.error("Network error:", err);
       setError('Server unreachable. Make sure backend is running.');
     }
   };

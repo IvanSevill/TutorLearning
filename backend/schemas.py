@@ -41,7 +41,7 @@ class CourseBase(BaseModel):
     is_enrollable: bool = True
 
 class CourseCreate(CourseBase):
-    pass
+    teacher_id: Optional[int] = None
 
 class CourseUpdate(BaseModel):
     title: Optional[str] = None

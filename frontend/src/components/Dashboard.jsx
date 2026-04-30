@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../App';
 
 const Dashboard = ({ user, onLogout }) => {
@@ -6,7 +6,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [enrollments, setEnrollments] = useState([]);
   const [newCourse, setNewCourse] = useState({ title: '', description: '' });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [coursesRes, enrollmentsRes] = await Promise.all([
         fetch(`${API_URL}/courses/`),
@@ -19,31 +19,55 @@ const Dashboard = ({ user, onLogout }) => {
     } catch (err) {
       console.error("Failed to fetch dashboard data", err);
     }
-  };
+  }, [user.id]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const handleEnroll = async (courseId) => {
-    const response = await fetch(`${API_URL}/enrollments/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: user.id, course_id: courseId })
-    });
-    if (response.ok) fetchData();
+    try {
+      const response = await fetch(`${API_URL}/enrollments/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, course_id: courseId })
+      });
+      if (response.ok) {
+        fetchData();
+      } else {
+        const data = await response.json();
+        alert(data.detail || "Enrollment failed");
+      }
+    } catch (err) {
+      console.error("Enroll error:", err);
+      alert("Network error during enrollment");
+    }
   };
 
   const handleCreateCourse = async (e) => {
     e.preventDefault();
-    const response = await fetch(`${API_URL}/courses/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newCourse, is_visible: true, is_enrollable: true })
-    });
-    if (response.ok) {
-      setNewCourse({ title: '', description: '' });
-      fetchData();
+    try {
+      const response = await fetch(`${API_URL}/courses/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          title: newCourse.title, 
+          description: newCourse.description, 
+          teacher_id: user.id,
+          is_visible: true, 
+          is_enrollable: true 
+        })
+      });
+      if (response.ok) {
+        setNewCourse({ title: '', description: '' });
+        fetchData();
+      } else {
+        const data = await response.json();
+        alert(data.detail || "Creation failed");
+      }
+    } catch (err) {
+      console.error("Create error:", err);
+      alert("Network error during course creation");
     }
   };
 
@@ -86,8 +110,8 @@ const Dashboard = ({ user, onLogout }) => {
             </form>
             
             <div className="grid">
-              {courses.filter(c => true /* In real app, filter by teacher_id */).map(course => (
-                <div key={course.id} className="glass-card" style={{ padding: '1rem' }}>
+              {courses.filter(c => c.teacher_id === user.id).map(course => (
+                <div key={`teacher-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
                   <h4 style={{ margin: 0 }}>{course.title}</h4>
                   <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{course.description}</p>
                 </div>
@@ -103,7 +127,7 @@ const Dashboard = ({ user, onLogout }) => {
           <h4>My Enrollments</h4>
           <div className="grid">
             {enrollments.map(enrollment => (
-              <div key={enrollment.course_id} className="glass-card" style={{ padding: '1rem', borderLeft: '4px solid #10b981' }}>
+              <div key={`enrollment-${enrollment.course_id}`} className="glass-card" style={{ padding: '1rem', borderLeft: '4px solid #10b981' }}>
                 <h4 style={{ margin: 0 }}>{enrollment.course?.title || `Course ${enrollment.course_id}`}</h4>
                 <p style={{ color: '#10b981', fontSize: '0.8rem', fontWeight: 'bold' }}>Enrolled</p>
               </div>
@@ -112,8 +136,8 @@ const Dashboard = ({ user, onLogout }) => {
 
           <h4 style={{ marginTop: '2rem' }}>Explore Available Courses</h4>
           <div className="grid">
-            {courses.filter(c => !enrolledIds.includes(c.id)).map(course => (
-              <div key={course.id} className="glass-card" style={{ padding: '1rem' }}>
+            {courses.filter(c => !enrolledIds.includes(c.id) && c.teacher_id !== user.id).map(course => (
+              <div key={`available-course-${course.id}`} className="glass-card" style={{ padding: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                   <h4 style={{ margin: 0 }}>{course.title}</h4>
                   <button onClick={() => handleEnroll(course.id)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>Enroll</button>

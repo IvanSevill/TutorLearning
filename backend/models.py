@@ -25,7 +25,9 @@ class Course(Base):
     description = Column(Text, nullable=True)
     is_visible = Column(Boolean, nullable=False, default=True)
     is_enrollable = Column(Boolean, nullable=False, default=True)
+    teacher_id = Column(Integer, ForeignKey("Users.id"), nullable=True)
 
+    teacher = relationship("User")
     enrollments = relationship("Enrollment", back_populates="course")
     assignments = relationship("Assignment", back_populates="course")
     files = relationship("File", back_populates="course")
