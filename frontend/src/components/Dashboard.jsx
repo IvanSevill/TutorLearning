@@ -6,6 +6,10 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
   const [activeTab, setActiveTab] = useState('my');
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
+  
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newCourseTitle, setNewCourseTitle] = useState('');
+  const [newCourseDescription, setNewCourseDescription] = useState('');
 
   const showNotify = (msg, type = 'success') => {
     setNotification({ msg, type });
@@ -82,6 +86,34 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
     }
   };
 
+  const handleCreateCourse = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_URL}/courses/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newCourseTitle,
+          description: newCourseDescription,
+          is_visible: false,
+          is_enrollable: true,
+          teacher_id: user.id
+        })
+      });
+      if (res.ok) {
+        showNotify("Course created successfully!");
+        setShowCreateModal(false);
+        setNewCourseTitle('');
+        setNewCourseDescription('');
+        fetchData();
+      } else {
+        showNotify("Failed to create course", "error");
+      }
+    } catch (err) {
+      showNotify("Error creating course", "error");
+    }
+  };
+
   return (
     <div className="container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
       {notification && (
@@ -126,6 +158,11 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {activeTab === 'teaching' && user.is_teacher && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+              <button className="primary" onClick={() => setShowCreateModal(true)}>+ Create New Class</button>
+            </div>
+          )}
           {courses.length === 0 && (
             <div className="glass-card" style={{ textAlign: 'center', padding: '4rem' }}>
               <p style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>No courses found in this category.</p>
@@ -137,7 +174,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
               <div style={{ width: '90px', height: '90px', borderRadius: '14px', overflow: 'hidden', flexShrink: 0,
                 background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {course.image_url
-                  ? <img src={course.image_url} alt={course.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ? <img src={course.image_url.includes('storage.googleapis.com') ? `${API_URL}/proxy-image?url=${encodeURIComponent(course.image_url)}` : course.image_url} alt={course.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <span style={{ fontSize: '2.5rem' }}>📚</span>
                 }
               </div>
@@ -150,7 +187,9 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
                   </span>
                 </div>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 0.5rem 0' }}>
-                  {course.description}
+                  {course.description && course.description.length > 100 
+                    ? course.description.substring(0, 100) + '...' 
+                    : course.description}
                 </p>
                 {course.teacher && (
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
@@ -170,6 +209,40 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="glass-card" style={{ width: '90%', maxWidth: '500px', padding: '2rem' }}>
+            <h3>Create New Class</h3>
+            <form onSubmit={handleCreateCourse} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem' }}>Course Title</label>
+                <input 
+                  type="text" 
+                  value={newCourseTitle} 
+                  onChange={e => setNewCourseTitle(e.target.value)} 
+                  required 
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem' }}>Description</label>
+                <textarea 
+                  value={newCourseDescription} 
+                  onChange={e => setNewCourseDescription(e.target.value)} 
+                  rows={4}
+                  required 
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+                <button type="button" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="primary">Create Course</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

@@ -81,6 +81,8 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
   // Modals state
   const [showEditModal, setShowEditModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showEditTaskModal, setShowEditTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -99,6 +101,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
 
   // Student task upload state
   const [studentUploads, setStudentUploads] = useState({});
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
 
   const isOwner = Number(course.teacher_id) === Number(user.id);
 
@@ -183,19 +186,71 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
   const handleAddTask = async (e) => {
     e.preventDefault();
     try {
+      const payload = { ...taskForm, course_id: course.id };
+      // Pydantic datetime expects a valid ISO string
+      if (payload.due_date) {
+        payload.due_date = new Date(payload.due_date).toISOString();
+      } else {
+        payload.due_date = null;
+      }
+
       const res = await fetch(`${API_URL}/assignments/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...taskForm, course_id: course.id })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         setShowTaskModal(false);
         setTaskForm({ title: '', description: '', due_date: '' });
         showNotify('Task added successfully');
         fetchData();
+      } else {
+        const err = await res.json();
+        console.error("Add task error:", err);
+        showNotify('Failed to add assignment', 'error');
       }
     } catch (error) {
+      console.error(error);
       showNotify('Failed to add assignment', 'error');
+    }
+  };
+
+  const openEditTask = (task) => {
+    setEditingTask(task);
+    setTaskForm({
+      title: task.title,
+      description: task.description || '',
+      due_date: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : ''
+    });
+    setShowEditTaskModal(true);
+  };
+
+  const handleEditTask = async (e) => {
+    e.preventDefault();
+    if (!editingTask) return;
+    try {
+      const payload = { ...taskForm };
+      if (payload.due_date) {
+        payload.due_date = new Date(payload.due_date).toISOString();
+      } else {
+        payload.due_date = null;
+      }
+      const res = await fetch(`${API_URL}/assignments/${editingTask.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setShowEditTaskModal(false);
+        setEditingTask(null);
+        setTaskForm({ title: '', description: '', due_date: '' });
+        showNotify('Task updated successfully');
+        fetchData();
+      } else {
+        showNotify('Failed to update task', 'error');
+      }
+    } catch (error) {
+      showNotify('Failed to update task', 'error');
     }
   };
 
@@ -315,7 +370,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
         {/* Background image overlay */}
         {course.image_url && (
           <div style={{ position: 'absolute', top: 0, right: 0, width: '45%', height: '100%', opacity: 0.15, maskImage: 'linear-gradient(to left, black 40%, transparent)' }}>
-            <img src={course.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={course.image_url.includes('storage.googleapis.com') ? `${API_URL}/proxy-image?url=${encodeURIComponent(course.image_url)}` : course.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
 
@@ -329,7 +384,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
               cursor: isOwner ? 'pointer' : 'default', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
             {course.image_url
-              ? <img src={course.image_url} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <img src={course.image_url.includes('storage.googleapis.com') ? `${API_URL}/proxy-image?url=${encodeURIComponent(course.image_url)}` : course.image_url} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : <span style={{ fontSize: '3rem' }}>📚</span>
             }
             {isOwner && (
@@ -343,7 +398,24 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
 
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: '2.2rem', margin: '0 0 0.75rem 0', lineHeight: 1.2 }}>{course.title}</h1>
-            <p style={{ color: 'var(--text-muted)', lineHeight: '1.6', margin: '0 0 1rem 0' }}>{course.description}</p>
+            {(() => {
+              const desc = course.description || '';
+              const isLong = desc.length > 150;
+              const displayDesc = isLong && !isDescExpanded ? desc.substring(0, 150) + '...' : desc;
+              return (
+                <p style={{ color: 'var(--text-muted)', lineHeight: '1.6', margin: '0 0 1rem 0' }}>
+                  {displayDesc}
+                  {isLong && (
+                    <span 
+                      style={{ color: 'var(--primary)', cursor: 'pointer', marginLeft: '8px', fontWeight: 'bold' }} 
+                      onClick={() => setIsDescExpanded(!isDescExpanded)}
+                    >
+                      {isDescExpanded ? 'Show less' : 'Read more'}
+                    </span>
+                  )}
+                </p>
+              );
+            })()}
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <span className={`badge ${course.is_visible ? 'success' : 'warning'}`}>{course.is_visible ? '🌐 Public' : '🔒 Draft'}</span>
               <span className={`badge ${course.is_enrollable ? 'success' : 'warning'}`}>{course.is_enrollable ? '✅ Enrollable' : '⛔ Closed'}</span>
@@ -402,7 +474,13 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
                       </span>
                     )}
                   </div>
-                  <p style={{ color: 'var(--text-muted)', margin: '0.5rem 0 0 0' }}>{item.description}</p>
+                  <p style={{ color: 'var(--text-muted)', margin: '0.5rem 0 0 0', whiteSpace: 'pre-wrap' }}>{item.description}</p>
+
+                  {isOwner && (
+                    <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+                      <button className="secondary" onClick={() => openEditTask(item)}>✏️ Edit Task</button>
+                    </div>
+                  )}
 
                   {!isOwner && (
                     <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-glass)' }}>
@@ -503,6 +581,26 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="submit" className="primary" style={{ flex: 1 }}>Save</button>
                 <button type="button" onClick={() => setShowEditModal(false)} style={{ flex: 1 }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditTaskModal && (
+        <div className="modal-overlay">
+          <div className="modal-content glass-card">
+            <h2>✏️ Edit Task</h2>
+            <form onSubmit={handleEditTask}>
+              <label>Title</label>
+              <input value={taskForm.title} onChange={e => setTaskForm({ ...taskForm, title: e.target.value })} required />
+              <label>Description</label>
+              <textarea rows="4" value={taskForm.description} onChange={e => setTaskForm({ ...taskForm, description: e.target.value })} required />
+              <label>Due Date</label>
+              <input type="date" value={taskForm.due_date} onChange={e => setTaskForm({ ...taskForm, due_date: e.target.value })} required />
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" className="primary" style={{ flex: 1 }}>Save</button>
+                <button type="button" onClick={() => { setShowEditTaskModal(false); setEditingTask(null); }} style={{ flex: 1 }}>Cancel</button>
               </div>
             </form>
           </div>

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 import uuid
@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import os
 import tempfile
+import mimetypes
 
 import schemas
 import models
@@ -197,9 +198,17 @@ async def update_course_image(course_id: int, file: UploadFile = File(...), db: 
     # Read file contents
     contents = await file.read()
     
+    content_type = file.content_type
+    if not content_type or content_type == 'application/octet-stream':
+        guessed_type, _ = mimetypes.guess_type(file.filename)
+        if guessed_type:
+            content_type = guessed_type
+        elif file.filename.lower().endswith('.webp'):
+            content_type = 'image/webp'
+            
     # Upload to GCS
     destination_path = f"courses/{course_id}/cover_{uuid.uuid4()}_{file.filename}"
-    public_url = gcs_db.upload_file(contents, destination_path, file.content_type)
+    public_url = gcs_db.upload_file(contents, destination_path, content_type)
     
     course.image_url = public_url
     db.commit()
@@ -212,7 +221,22 @@ def get_file_redirect(file_id: int, db: Session = Depends(get_db)):
     db_file = db.query(models.File).filter(models.File.id == file_id).first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
-    return RedirectResponse(url=db_file.gcs_url)
+    
+    try:
+        contents, content_type = gcs_db.download_file_by_url(db_file.gcs_url)
+        return Response(content=contents, media_type=content_type)
+    except Exception:
+        # Fallback to redirect if proxy fails
+        return RedirectResponse(url=db_file.gcs_url)
+
+@app.get("/proxy-image")
+def proxy_image(url: str):
+    """Proxies an image from GCS to bypass public access prevention"""
+    try:
+        contents, content_type = gcs_db.download_file_by_url(url)
+        return Response(content=contents, media_type=content_type)
+    except Exception:
+        return RedirectResponse(url=url)
 
 @app.get("/courses/teacher/{teacher_id}", response_model=list[schemas.CourseResponse])
 def get_teacher_courses(teacher_id: int, db: Session = Depends(get_db)):
@@ -451,9 +475,17 @@ def upload_generic_file(file: UploadFile = File(...)):
         unique_name = f"{uuid.uuid4()}.{file_extension}"
         destination_path = f"files/uploads/{unique_name}"
         
-        public_url = gcs_db.upload_file(contents, destination_path, file.content_type)
+        content_type = file.content_type
+        if not content_type or content_type == 'application/octet-stream':
+            guessed_type, _ = mimetypes.guess_type(file.filename)
+            if guessed_type:
+                content_type = guessed_type
+            elif file.filename.lower().endswith('.webp'):
+                content_type = 'image/webp'
+                
+        public_url = gcs_db.upload_file(contents, destination_path, content_type)
         
-        return {"url": public_url, "filename": file.filename, "content_type": file.content_type}
+        return {"url": public_url, "filename": file.filename, "content_type": content_type}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
@@ -475,14 +507,22 @@ def upload_course_file(course_id: int, file: UploadFile = File(...), db: Session
         unique_name = f"{uuid.uuid4()}.{file_extension}"
         destination_path = f"files/courses/{course_id}/{unique_name}"
         
+        content_type = file.content_type
+        if not content_type or content_type == 'application/octet-stream':
+            guessed_type, _ = mimetypes.guess_type(file.filename)
+            if guessed_type:
+                content_type = guessed_type
+            elif file.filename.lower().endswith('.webp'):
+                content_type = 'image/webp'
+
         # Upload to GCS
-        public_url = gcs_db.upload_file(contents, destination_path, file.content_type)
+        public_url = gcs_db.upload_file(contents, destination_path, content_type)
         
         # Save to Cloud SQL
         db_file = models.File(
             course_id=course_id,
             file_name=file.filename,
-            mime_type=file.content_type,
+            mime_type=content_type,
             gcs_url=public_url
         )
         db.add(db_file)

@@ -52,6 +52,19 @@ class GCSDatabase:
         blob.upload_from_string(contents, content_type=content_type)
         return blob.public_url
 
+    def download_file_by_url(self, public_url: str) -> tuple[bytes, str]:
+        if not self.bucket:
+            raise Exception("GCS bucket is not initialized.")
+        prefix = f"https://storage.googleapis.com/{self.bucket.name}/"
+        if public_url.startswith(prefix):
+            destination_path = public_url[len(prefix):]
+        else:
+            destination_path = public_url
+            
+        blob = self.bucket.blob(destination_path)
+        contents = blob.download_as_bytes()
+        return contents, blob.content_type
+
 gcs_db = GCSDatabase(bucket)
 
 # ================== CLOUD SQL SETUP ==================

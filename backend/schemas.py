@@ -146,7 +146,7 @@ class TextBlockBase(BaseModel):
     content: Optional[str] = None
 
 class TextBlockCreate(TextBlockBase):
-    pass
+    course_id: int
 
 class TextBlockUpdate(BaseModel):
     title: Optional[str] = None
