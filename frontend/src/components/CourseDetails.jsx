@@ -169,6 +169,17 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
     }
   };
 
+  const handleDeleteSubmission = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete your submission?')) return;
+    try {
+      await assignmentService.deleteSubmission(taskId, user.id);
+      showNotify('Submission deleted');
+      fetchData();
+    } catch (error) {
+      showNotify(error.message, 'error');
+    }
+  };
+
   return (
     <div className="container" style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem' }}>
       {/* Top Bar */}
@@ -209,6 +220,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
               onDeleteFile={id => handleDelete('file', id)}
               onEditTask={task => { setEditingTask(task); setActiveModal('task'); }}
               onStudentSubmit={handleStudentSubmit}
+              onDeleteSubmission={handleDeleteSubmission}
               submissions={submissions}
             />
           )}

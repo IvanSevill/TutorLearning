@@ -2,7 +2,7 @@ import { useState } from 'react';
 import MediaPreview from './MediaPreview';
 import { formatDate } from '../../utils';
 
-const CourseFeed = ({ items, isOwner, onDeletePost, onDeleteTask, onDeleteFile, onEditTask, onStudentSubmit, submissions }) => {
+const CourseFeed = ({ items, isOwner, onDeletePost, onDeleteTask, onDeleteFile, onEditTask, onStudentSubmit, onDeleteSubmission, submissions }) => {
   const [studentUploads, setStudentUploads] = useState({});
 
   if (items.length === 0) {
@@ -66,7 +66,10 @@ const CourseFeed = ({ items, isOwner, onDeletePost, onDeleteTask, onDeleteFile, 
                       <div className="glass-card" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ color: '#6ee7b7', fontWeight: '600' }}>✅ Already Submitted</span>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(sub.submission_date)}</span>
+                          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(sub.submission_date)}</span>
+                            <button className="danger" style={{ padding: '4px 8px', fontSize: '0.7rem' }} onClick={() => onDeleteSubmission(item.id)}>🗑️</button>
+                          </div>
                         </div>
                         {sub.grade !== null && (
                           <div style={{ marginTop: '0.5rem', fontSize: '1.1rem', fontWeight: 'bold' }}>

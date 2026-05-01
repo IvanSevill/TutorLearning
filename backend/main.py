@@ -370,6 +370,20 @@ def list_user_submissions_in_course(course_id: int, user_id: int, db: Session = 
         models.AssignmentSubmission.assignment_id.in_(assignment_ids)
     ).all()
 
+@app.delete("/submissions/assignment/{assignment_id}/user/{user_id}")
+def delete_submission(assignment_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Deletes a submission by a specific user for a specific assignment"""
+    db_sub = db.query(models.AssignmentSubmission).filter(
+        models.AssignmentSubmission.assignment_id == assignment_id,
+        models.AssignmentSubmission.user_id == user_id
+    ).first()
+    if not db_sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    db.delete(db_sub)
+    db.commit()
+    return {"message": "Submission deleted successfully"}
+
 # ================== POSTS (TEXT BLOCKS) ==================
 
 @app.post("/textblocks/", response_model=schemas.TextBlockResponse)

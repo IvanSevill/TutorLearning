@@ -58,6 +58,7 @@ export const assignmentService = {
   delete: (id) => api.delete(`/assignments/${id}`),
   submit: (data) => api.post('/submissions/', data),
   getSubmissionsForCourse: (courseId, userId) => api.get(`/submissions/course/${courseId}/user/${userId}`),
+  deleteSubmission: (assignmentId, userId) => api.delete(`/submissions/assignment/${assignmentId}/user/${userId}`),
 };
 
 export const postService = {
