@@ -273,6 +273,36 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
     }
   };
 
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm('Are you sure you want to delete this post?')) return;
+    try {
+      const res = await fetch(`${API_URL}/textblocks/${postId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showNotify('Post deleted');
+        fetchData();
+      } else {
+        showNotify('Failed to delete post', 'error');
+      }
+    } catch (error) {
+      showNotify('Failed to delete post', 'error');
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
+    try {
+      const res = await fetch(`${API_URL}/assignments/${taskId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showNotify('Task deleted');
+        fetchData();
+      } else {
+        showNotify('Failed to delete task', 'error');
+      }
+    } catch (error) {
+      showNotify('Failed to delete task', 'error');
+    }
+  };
+
   const handleLeave = async () => {
     if (!window.confirm('Are you sure you want to leave this course?')) return;
     try {
@@ -455,6 +485,11 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
                   </div>
                   <h3 style={{ margin: '0 0 0.5rem 0' }}>{item.title}</h3>
                   <p style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap', margin: 0 }}>{item.content}</p>
+                  {isOwner && (
+                    <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+                      <button className="danger" style={{ padding: '6px 16px', fontSize: '0.8rem' }} onClick={() => handleDeletePost(item.id)}>🗑️ Delete</button>
+                    </div>
+                  )}
                 </div>
               );
             }
@@ -477,8 +512,9 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
                   <p style={{ color: 'var(--text-muted)', margin: '0.5rem 0 0 0', whiteSpace: 'pre-wrap' }}>{item.description}</p>
 
                   {isOwner && (
-                    <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+                    <div style={{ marginTop: '1rem', textAlign: 'right', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                       <button className="secondary" onClick={() => openEditTask(item)}>✏️ Edit Task</button>
+                      <button className="danger" style={{ padding: '6px 16px', fontSize: '0.8rem' }} onClick={() => handleDeleteTask(item.id)}>🗑️ Delete</button>
                     </div>
                   )}
 

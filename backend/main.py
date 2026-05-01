@@ -20,12 +20,7 @@ app = FastAPI(title="Tutor-Learning-API", version="1.0")
 # CORS middleware — allow specific origins for development and production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -317,6 +312,22 @@ def update_assignment(assignment_id: int, assignment_update: schemas.AssignmentU
     db.refresh(assignment)
     return assignment
 
+@app.delete("/assignments/{assignment_id}")
+def delete_assignment(assignment_id: int, db: Session = Depends(get_db)):
+    """Deletes an assignment (task)"""
+    assignment = db.query(models.Assignment).filter(models.Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Delete related submissions first
+    db.query(models.AssignmentSubmission).filter(
+        models.AssignmentSubmission.assignment_id == assignment_id
+    ).delete()
+    
+    db.delete(assignment)
+    db.commit()
+    return {"detail": "Task deleted successfully"}
+
 # ================== ASSIGNMENT SUBMISSIONS ==================
 @app.post("/submissions/", response_model=schemas.AssignmentSubmissionResponse)
 def submit_assignment(submission: schemas.AssignmentSubmissionCreate, db: Session = Depends(get_db)):
@@ -373,6 +384,17 @@ def list_textblocks(course_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Course not found")
     
     return db.query(models.TextBlock).filter(models.TextBlock.course_id == course_id).all()
+
+@app.delete("/textblocks/{textblock_id}")
+def delete_textblock(textblock_id: int, db: Session = Depends(get_db)):
+    """Deletes a text block (post)"""
+    db_textblock = db.query(models.TextBlock).filter(models.TextBlock.id == textblock_id).first()
+    if not db_textblock:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    db.delete(db_textblock)
+    db.commit()
+    return {"detail": "Post deleted successfully"}
 
 # ================== ENROLLMENTS ==================
 
