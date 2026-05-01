@@ -65,6 +65,34 @@ class GCSDatabase:
         contents = blob.download_as_bytes()
         return contents, blob.content_type
 
+    def get_signed_url(self, public_url: str, expiration_minutes: int = 60) -> str:
+        if not self.bucket:
+            raise Exception("GCS bucket is not initialized.")
+        prefix = f"https://storage.googleapis.com/{self.bucket.name}/"
+        if public_url.startswith(prefix):
+            destination_path = public_url[len(prefix):]
+        else:
+            destination_path = public_url
+            
+        blob = self.bucket.blob(destination_path)
+        from datetime import timedelta
+        return blob.generate_signed_url(version="v4", expiration=timedelta(minutes=expiration_minutes), method="GET")
+
+    def delete_file(self, public_url: str):
+        if not self.bucket:
+            return
+        prefix = f"https://storage.googleapis.com/{self.bucket.name}/"
+        if public_url.startswith(prefix):
+            destination_path = public_url[len(prefix):]
+        else:
+            destination_path = public_url
+            
+        try:
+            blob = self.bucket.blob(destination_path)
+            blob.delete()
+        except Exception as e:
+            print(f"Warning: Failed to delete GCS blob {destination_path}: {e}")
+
 gcs_db = GCSDatabase(bucket)
 
 # ================== CLOUD SQL SETUP ==================

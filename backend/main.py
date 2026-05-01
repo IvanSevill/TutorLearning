@@ -212,26 +212,33 @@ async def update_course_image(course_id: int, file: UploadFile = File(...), db: 
 
 @app.get("/files/{file_id}")
 def get_file_redirect(file_id: int, db: Session = Depends(get_db)):
-    """Proxies/Redirects to the GCS URL to handle previewing files securely"""
+    """Redirects to a signed GCS URL to handle previewing files securely with range request support"""
     db_file = db.query(models.File).filter(models.File.id == file_id).first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
     
     try:
-        contents, content_type = gcs_db.download_file_by_url(db_file.gcs_url)
-        return Response(content=contents, media_type=content_type)
+        signed_url = gcs_db.get_signed_url(db_file.gcs_url)
+        return RedirectResponse(url=signed_url)
     except Exception:
-        # Fallback to redirect if proxy fails
-        return RedirectResponse(url=db_file.gcs_url)
+        try:
+            contents, content_type = gcs_db.download_file_by_url(db_file.gcs_url)
+            return Response(content=contents, media_type=content_type)
+        except Exception:
+            return RedirectResponse(url=db_file.gcs_url)
 
 @app.get("/proxy-image")
 def proxy_image(url: str):
-    """Proxies an image from GCS to bypass public access prevention"""
+    """Redirects to a signed GCS URL for an image"""
     try:
-        contents, content_type = gcs_db.download_file_by_url(url)
-        return Response(content=contents, media_type=content_type)
+        signed_url = gcs_db.get_signed_url(url)
+        return RedirectResponse(url=signed_url)
     except Exception:
-        return RedirectResponse(url=url)
+        try:
+            contents, content_type = gcs_db.download_file_by_url(url)
+            return Response(content=contents, media_type=content_type)
+        except Exception:
+            return RedirectResponse(url=url)
 
 @app.get("/courses/teacher/{teacher_id}", response_model=list[schemas.CourseResponse])
 def get_teacher_courses(teacher_id: int, db: Session = Depends(get_db)):
@@ -564,11 +571,19 @@ def list_course_files(course_id: int, db: Session = Depends(get_db)):
     
     return db.query(models.File).filter(models.File.course_id == course_id).all()
 
-@app.get("/files/{file_id}")
-def download_file(file_id: int, db: Session = Depends(get_db)):
-    """Redirects to the public GCS URL of a file"""
-    file_record = db.query(models.File).filter(models.File.id == file_id).first()
-    if not file_record:
+@app.delete("/files/{file_id}")
+def delete_course_file(file_id: int, db: Session = Depends(get_db)):
+    """Deletes a file from the course and from GCS"""
+    db_file = db.query(models.File).filter(models.File.id == file_id).first()
+    if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    return RedirectResponse(url=file_record.gcs_url)
+    # Delete from GCS
+    gcs_db.delete_file(db_file.gcs_url)
+    
+    # Delete from database
+    db.delete(db_file)
+    db.commit()
+    
+    return {"detail": "File deleted successfully"}
+

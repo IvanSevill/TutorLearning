@@ -133,12 +133,12 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Build unified sorted feed
+  // Build unified sorted feed (newest to oldest)
   const unifiedFeed = [
     ...feed.map(p => ({ ...p, _type: 'post', _date: p.created_at })),
     ...tasks.map(t => ({ ...t, _type: 'task', _date: t.created_at })),
     ...files.map(f => ({ ...f, _type: 'file', _date: f.upload_date })),
-  ].sort((a, b) => new Date(a._date || 0) - new Date(b._date || 0));
+  ].sort((a, b) => new Date(b._date || 0) - new Date(a._date || 0));
 
   const handleUpdateCourse = async (e) => {
     e.preventDefault();
@@ -300,6 +300,21 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
       }
     } catch (error) {
       showNotify('Failed to delete task', 'error');
+    }
+  };
+
+  const handleDeleteFile = async (fileId) => {
+    if (!window.confirm('Are you sure you want to delete this file?')) return;
+    try {
+      const res = await fetch(`${API_URL}/files/${fileId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showNotify('File deleted');
+        fetchData();
+      } else {
+        showNotify('Failed to delete file', 'error');
+      }
+    } catch (error) {
+      showNotify('Failed to delete file', 'error');
     }
   };
 
@@ -543,6 +558,11 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
                   <div style={{ borderRadius: '12px', overflow: 'hidden', background: 'rgba(0,0,0,0.2)', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <MediaPreview file={item} />
                   </div>
+                  {isOwner && (
+                    <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+                      <button className="danger" style={{ padding: '6px 16px', fontSize: '0.8rem' }} onClick={() => handleDeleteFile(item.id)}>🗑️ Delete</button>
+                    </div>
+                  )}
                 </div>
               );
             }
