@@ -61,16 +61,14 @@ def seed_database():
             description="A comprehensive study on the habitats, behaviors, and evolution of various Pokemon species.",
             is_visible=True,
             is_enrollable=True,
-            teacher_id=teacher1.id,
-            image_url="https://images.unsplash.com/photo-1613771404784-3a5686aa2be3?q=80&w=2069&auto=format&fit=crop"
+            teacher_id=teacher1.id
         )
         course2 = Course(
             title="Advanced Potion Making",
             description="Learn how to craft full restores, max potions, and elixirs from natural ingredients.",
             is_visible=True,
             is_enrollable=True,
-            teacher_id=teacher2.id,
-            image_url="https://images.unsplash.com/photo-1585250015549-9dfa891007d6?q=80&w=2071&auto=format&fit=crop"
+            teacher_id=teacher2.id
         )
         course3 = Course(
             title="Draft Course (Hidden)",
