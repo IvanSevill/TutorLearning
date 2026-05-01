@@ -240,10 +240,7 @@ def proxy_image(url: str):
         except Exception:
             return RedirectResponse(url=url)
 
-@app.get("/courses/teacher/{teacher_id}", response_model=list[schemas.CourseResponse])
-def get_teacher_courses(teacher_id: int, db: Session = Depends(get_db)):
-    """Retrieves all courses created by a specific teacher"""
-    return db.query(models.Course).filter(models.Course.teacher_id == teacher_id).all()
+# (Redundant get_teacher_courses removed, use list_teacher_courses above)
 
 @app.get("/courses/{course_id}", response_model=schemas.CourseResponse)
 def get_course(course_id: int, db: Session = Depends(get_db)):
@@ -562,14 +559,7 @@ def upload_course_file(course_id: int, file: UploadFile = File(...), db: Session
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
-@app.get("/files/course/{course_id}", response_model=list[schemas.FileResponse])
-def list_course_files(course_id: int, db: Session = Depends(get_db)):
-    """Lists all files for a course"""
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-    
-    return db.query(models.File).filter(models.File.course_id == course_id).all()
+# (Redundant list_course_files removed, use get_course_files above)
 
 @app.delete("/files/{file_id}")
 def delete_course_file(file_id: int, db: Session = Depends(get_db)):
