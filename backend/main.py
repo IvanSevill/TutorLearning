@@ -361,6 +361,15 @@ def submit_assignment(submission: schemas.AssignmentSubmissionCreate, db: Sessio
     db.refresh(db_sub)
     return db_sub
 
+@app.get("/submissions/course/{course_id}/user/{user_id}", response_model=list[schemas.AssignmentSubmissionResponse])
+def list_user_submissions_in_course(course_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Lists all submissions by a specific user in a specific course"""
+    assignment_ids = [a.id for a in db.query(models.Assignment.id).filter(models.Assignment.course_id == course_id).all()]
+    return db.query(models.AssignmentSubmission).filter(
+        models.AssignmentSubmission.user_id == user_id,
+        models.AssignmentSubmission.assignment_id.in_(assignment_ids)
+    ).all()
+
 # ================== POSTS (TEXT BLOCKS) ==================
 
 @app.post("/textblocks/", response_model=schemas.TextBlockResponse)

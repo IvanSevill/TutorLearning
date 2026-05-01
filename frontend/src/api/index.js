@@ -57,6 +57,7 @@ export const assignmentService = {
   update: (id, data) => api.put(`/assignments/${id}`, data),
   delete: (id) => api.delete(`/assignments/${id}`),
   submit: (data) => api.post('/submissions/', data),
+  getSubmissionsForCourse: (courseId, userId) => api.get(`/submissions/course/${courseId}/user/${userId}`),
 };
 
 export const postService = {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import MediaPreview from './MediaPreview';
 import { formatDate } from '../../utils';
 
-const CourseFeed = ({ items, isOwner, onDeletePost, onDeleteTask, onDeleteFile, onEditTask, onStudentSubmit }) => {
+const CourseFeed = ({ items, isOwner, onDeletePost, onDeleteTask, onDeleteFile, onEditTask, onStudentSubmit, submissions }) => {
   const [studentUploads, setStudentUploads] = useState({});
 
   if (items.length === 0) {
@@ -58,16 +58,42 @@ const CourseFeed = ({ items, isOwner, onDeletePost, onDeleteTask, onDeleteFile, 
                 </div>
               )}
 
-              {!isOwner && (
-                <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-glass)' }}>
-                  <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem' }}>Submit your work</h4>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <input type="file" style={{ flex: 1, marginBottom: 0 }}
-                      onChange={(e) => setStudentUploads(prev => ({ ...prev, [item.id]: e.target.files[0] }))} />
-                    <button className="primary" onClick={() => onStudentSubmit(item.id, studentUploads[item.id])}>Submit</button>
+              {!isOwner && (() => {
+                const sub = submissions?.find(s => s.assignment_id === item.id);
+                return (
+                  <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-glass)' }}>
+                    {sub ? (
+                      <div className="glass-card" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#6ee7b7', fontWeight: '600' }}>✅ Already Submitted</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(sub.submission_date)}</span>
+                        </div>
+                        {sub.grade !== null && (
+                          <div style={{ marginTop: '0.5rem', fontSize: '1.1rem', fontWeight: 'bold' }}>
+                            Grade: <span style={{ color: 'var(--primary)' }}>{sub.grade}/10</span>
+                          </div>
+                        )}
+                        {sub.submission_file_url && (
+                          <div style={{ marginTop: '0.5rem' }}>
+                            <a href={sub.submission_file_url} target="_blank" rel="noreferrer" className="badge" style={{ textDecoration: 'none', background: 'rgba(255,255,255,0.1)' }}>
+                              📄 View My Submission
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem' }}>Submit your work</h4>
+                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                          <input type="file" style={{ flex: 1, marginBottom: 0 }}
+                            onChange={(e) => setStudentUploads(prev => ({ ...prev, [item.id]: e.target.files[0] }))} />
+                          <button className="primary" onClick={() => onStudentSubmit(item.id, studentUploads[item.id])}>Submit</button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           );
         }

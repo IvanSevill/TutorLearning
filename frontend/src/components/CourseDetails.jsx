@@ -20,6 +20,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
   const [students, setStudents] = useState([]);
   const [files, setFiles] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
   const [activeTab, setActiveTab] = useState('feed');
   const [loading, setLoading] = useState(false);
   const { showNotify } = useNotification();
@@ -33,22 +34,24 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [feedData, tasksData, studentsData, filesData] = await Promise.all([
+      const [feedData, tasksData, studentsData, filesData, submissionsData] = await Promise.all([
         courseService.getFeed(course.id),
         courseService.getTasks(course.id),
         courseService.getStudents(course.id),
-        courseService.getFiles(course.id)
+        courseService.getFiles(course.id),
+        assignmentService.getSubmissionsForCourse(course.id, user.id)
       ]);
       setFeed(feedData);
       setTasks(tasksData);
       setStudents(studentsData);
       setFiles(filesData);
+      setSubmissions(submissionsData);
     } catch {
       showNotify('Error fetching course data', 'error');
     } finally {
       setLoading(false);
     }
-  }, [course.id, showNotify]);
+  }, [course.id, user.id, showNotify]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -160,6 +163,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
       const { url } = await fileService.uploadGeneral(formData);
       await assignmentService.submit({ user_id: user.id, assignment_id: taskId, submission_file_url: url });
       showNotify('Submitted successfully!');
+      fetchData();
     } catch (error) {
       showNotify(error.message, 'error');
     }
@@ -205,6 +209,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
               onDeleteFile={id => handleDelete('file', id)}
               onEditTask={task => { setEditingTask(task); setActiveModal('task'); }}
               onStudentSubmit={handleStudentSubmit}
+              submissions={submissions}
             />
           )}
           {activeTab === 'students' && <StudentList students={students} />}
