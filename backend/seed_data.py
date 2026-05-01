@@ -113,6 +113,34 @@ def seed_database():
             ("Introduction to Psychology", "Understanding human behavior and the mind.", "Elm")
         ]
         
+        course_image_map = {
+            "Introduction to Pokemon Biology": "pokemon.jpg",
+            "Advanced Potion Making": "pokemon.jpg",
+            "Hoenn Region Habitats": "pokemon.jpg",
+            "Pokemon Evolution Lore": "pokemon.jpg",
+            "Defense Against the Dark Arts": "hogwarts.jpg",
+            "Potions and Alchemy": "hogwarts.jpg",
+            "Transfiguration 101": "hogwarts.jpg",
+            "Care of Magical Creatures": "hogwarts.jpg",
+            "Kernel Development": "tech.jpg",
+            "History of Computing": "tech.jpg",
+            "Fullstack Web Development": "tech.jpg",
+            "Cybersecurity Essentials": "tech.jpg",
+            "Radioactivity and Physics": "science.jpg",
+            "Organic Chemistry": "science.jpg",
+            "Quantum Mechanics": "science.jpg",
+            "Mastering the Beef Wellington": "artscooking.jpg",
+            "Kitchen Management": "artscooking.jpg",
+            "Fine Arts History": "artscooking.jpg",
+            "Modern Philosophy": "miscellaneous.jpg",
+            "World War II Strategy": "miscellaneous.jpg",
+            "Marine Biology": "miscellaneous.jpg",
+            "Game Theory": "miscellaneous.jpg",
+            "Ancient Egyptology": "miscellaneous.jpg",
+            "Photography Basics": "miscellaneous.jpg",
+            "Introduction to Psychology": "miscellaneous.jpg"
+        }
+        
         # Helper to find teacher by last name
         def get_teacher_by_name(last_name):
             for t in teachers:
@@ -120,13 +148,18 @@ def seed_database():
             return teachers[0].id # Fallback
             
         courses = []
+        bucket_name = os.getenv("GCS_BUCKET_NAME", "tutorlearning-bucket")
         for title, desc, t_name in course_templates:
+            img_file = course_image_map.get(title, "miscellaneous.jpg")
+            img_url = f"https://storage.googleapis.com/{bucket_name}/courses/{img_file}"
+            
             course = Course(
                 title=title,
                 description=desc,
                 is_visible=True,
                 is_enrollable=True,
-                teacher_id=get_teacher_by_name(t_name)
+                teacher_id=get_teacher_by_name(t_name),
+                image_url=img_url
             )
             courses.append(course)
             db.add(course)
