@@ -13,7 +13,6 @@ import mimetypes
 import schemas
 import models
 from database import get_db, gcs_db, engine, SessionLocal
-from seed_data import seed_database
 from gmail_service import gmail_service
 import threading
 import time
@@ -178,6 +177,7 @@ def read_root():
 def trigger_seed_database():
     """Temporary endpoint to seed the database in production"""
     try:
+        from seed_data import seed_database
         seed_database()
         return {"message": "Database wiped and seeded successfully."}
     except Exception as e:
