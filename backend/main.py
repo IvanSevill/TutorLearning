@@ -30,7 +30,7 @@ def process_email_queue():
             for email in pending_emails:
                 print(f"Processing email for {email.recipient_email}...")
                 try:
-                    success = gmail_service.send_email(
+                    success, error_msg = gmail_service.send_email(
                         to_email=email.recipient_email,
                         subject=email.subject,
                         body=email.body,
@@ -41,10 +41,12 @@ def process_email_queue():
                         print(f"Success sending email to {email.recipient_email}")
                     else:
                         email.status = models.EmailStatus.FAILED
+                        email.body = email.body + f"\n\n--- ERROR LOG ---\n{error_msg}"
                         print(f"Failed sending email to {email.recipient_email} (service returned False)")
                 except Exception as e:
                     print(f"Exception sending email to {email.recipient_email}: {e}")
                     email.status = models.EmailStatus.FAILED
+                    email.body = email.body + f"\n\n--- ERROR LOG ---\n{str(e)}"
                 
                 # Commit changes for this email
                 db.commit()

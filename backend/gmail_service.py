@@ -22,8 +22,7 @@ class GmailService:
     def send_email(self, to_email: str, subject: str, body: str, is_html: bool = True):
         """Sends an email using Gmail SMTP"""
         if not self.sender_email or not self.app_password:
-            print("Gmail SMTP not configured, skipping email send.")
-            return False
+            return False, "Gmail SMTP credentials (GMAIL_SENDER_EMAIL or GMAIL_APP_PASSWORD) are not set in the environment variables."
 
         try:
             # Create message
@@ -43,12 +42,11 @@ class GmailService:
                 server.login(self.sender_email, self.app_password)
                 server.sendmail(self.sender_email, to_email, message.as_string())
 
-            print(f"Email sent successfully to {to_email}")
-            return True
+            return True, ""
 
         except Exception as e:
             print(f"Error sending email: {e}")
-            return False
+            return False, str(e)
 
     def get_registration_email_html(self, user_name: str):
         """Generates the HTML body for the platform registration welcome email"""
