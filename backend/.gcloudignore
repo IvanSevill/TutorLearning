@@ -1,0 +1,11 @@
+# .gcloudignore
+.git
+.gitignore
+
+# Ignore local virtual environments
+.venv/
+venv/
+__pycache__/
+
+# We specifically WANT to include token.json for Gmail OAuth in Cloud Run
+!token.json

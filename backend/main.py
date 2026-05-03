@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
@@ -18,41 +18,40 @@ import threading
 import time
 
 def process_email_queue():
-    """Background job that uses a database cursor to process pending emails"""
-    while True:
+    """Background job that uses a database cursor to process pending emails (Cloud Run adapted)"""
+    try:
+        db = SessionLocal()
         try:
-            db = SessionLocal()
-            try:
-                # We use a database query (cursor) to fetch all PENDING emails
-                pending_emails = db.query(models.EmailQueue).filter(
-                    models.EmailQueue.status == models.EmailStatus.PENDING
-                ).all()
-                
-                for email in pending_emails:
-                    print(f"Processing email for {email.recipient_email}...")
-                    try:
-                        success = gmail_service.send_email(
-                            to_email=email.recipient_email,
-                            subject=email.subject,
-                            body=email.body,
-                            is_html=True
-                        )
-                        if success:
-                            email.status = models.EmailStatus.SENT
-                        else:
-                            email.status = models.EmailStatus.FAILED
-                    except Exception as e:
-                        print(f"Exception sending email to {email.recipient_email}: {e}")
-                        email.status = models.EmailStatus.FAILED
-                    
-                    # Commit changes for this email
-                    db.commit()
-            finally:
-                db.close()
-        except Exception as e:
-            print(f"Error in background email job: {e}")
+            # We use a database query (cursor) to fetch all PENDING emails
+            pending_emails = db.query(models.EmailQueue).filter(
+                models.EmailQueue.status == models.EmailStatus.PENDING
+            ).all()
             
-        time.sleep(10)  # Wait 10 seconds before polling again
+            for email in pending_emails:
+                print(f"Processing email for {email.recipient_email}...")
+                try:
+                    success = gmail_service.send_email(
+                        to_email=email.recipient_email,
+                        subject=email.subject,
+                        body=email.body,
+                        is_html=True
+                    )
+                    if success:
+                        email.status = models.EmailStatus.SENT
+                        print(f"Success sending email to {email.recipient_email}")
+                    else:
+                        email.status = models.EmailStatus.FAILED
+                        print(f"Failed sending email to {email.recipient_email} (service returned False)")
+                except Exception as e:
+                    print(f"Exception sending email to {email.recipient_email}: {e}")
+                    email.status = models.EmailStatus.FAILED
+                
+                # Commit changes for this email
+                db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error in background email job: {e}")
 
 app = FastAPI(title="Tutor-Learning-API", version="1.0")
 
@@ -85,11 +84,11 @@ def on_startup():
             conn.commit()
             print("Migration: Added created_at to TextBlocks")
         except Exception: pass
-        
-    # Start background email job
-    print("Starting background email processing job...")
-    thread = threading.Thread(target=process_email_queue, daemon=True)
-    thread.start()
+        try:
+            conn.execute(text("ALTER TABLE TextBlocks ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+            conn.commit()
+            print("Migration: Added created_at to TextBlocks")
+        except Exception: pass
 
 # Configuration for encrypting passwords
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -107,7 +106,7 @@ def read_root():
     return {"message": "Welcome to the Tutor-Learning Platform Backend!"}
 
 @app.post("/users/", response_model=schemas.UserResponse)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Creates a new user"""
     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
     if existing_user:
@@ -138,6 +137,9 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Error queueing registration email: {e}")
         db.rollback()
+
+    # Trigger background queue processor
+    background_tasks.add_task(process_email_queue)
 
     return db_user
 
@@ -486,7 +488,7 @@ def delete_textblock(textblock_id: int, db: Session = Depends(get_db)):
 # ================== ENROLLMENTS ==================
 
 @app.post("/enrollments/", response_model=schemas.EnrollmentResponse)
-def create_enrollment(enrollment: schemas.EnrollmentCreate, db: Session = Depends(get_db)):
+def create_enrollment(enrollment: schemas.EnrollmentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Enrolls a user in a course and sends a welcome email"""
     user = db.query(models.User).filter(models.User.id == enrollment.user_id).first()
     if not user:
@@ -529,6 +531,9 @@ def create_enrollment(enrollment: schemas.EnrollmentCreate, db: Session = Depend
         print(f"Error queueing enrollment email: {e}")
         db.rollback()
     
+    # Trigger background queue processor
+    background_tasks.add_task(process_email_queue)
+
     return db_enrollment
 
 @app.get("/enrollments/user/{user_id}", response_model=list[schemas.EnrollmentListResponse])
