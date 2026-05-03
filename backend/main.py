@@ -13,6 +13,7 @@ import mimetypes
 import schemas
 import models
 from database import get_db, gcs_db, engine, SessionLocal
+from seed_data import seed_database
 from gmail_service import gmail_service
 import threading
 import time
@@ -172,6 +173,15 @@ def verify_password(plain_password: str, hashed_password: str):
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Tutor-Learning Platform Backend!"}
+
+@app.post("/api/debug/seed")
+def trigger_seed_database():
+    """Temporary endpoint to seed the database in production"""
+    try:
+        seed_database()
+        return {"message": "Database wiped and seeded successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/users/", response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):

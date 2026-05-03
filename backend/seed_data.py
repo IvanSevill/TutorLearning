@@ -13,6 +13,51 @@ def seed_database():
     print("Recreating tables...")
     Base.metadata.create_all(bind=engine)
     
+    # Recreate Triggers
+    print("Recreating triggers...")
+    with engine.begin() as conn:
+        from sqlalchemy import text
+        conn.execute(text("DROP TRIGGER IF EXISTS after_user_insert"))
+        conn.execute(text("""
+            CREATE TRIGGER after_user_insert
+            AFTER INSERT ON Users
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO RegisterEmailQueue (recipient_email, subject, body, status, created_at)
+                VALUES (
+                    NEW.email,
+                    'Welcome to Tutor-Learning!',
+                    CONCAT('<html><body style="font-family: Arial, sans-serif; color: #333;"><div style="max-width: 600px; margin: 0 auto; padding: 20px;"><h1 style="color: #4CAF50;">Welcome, ', NEW.first_name, '!</h1><p>You have successfully registered on the <strong>Tutor-Learning</strong> platform.</p><p>You can now start exploring available courses and enroll in the ones that interest you the most.</p><p>If you have any questions, do not hesitate to contact us.</p><br><p style="color: #666; font-size: 12px;">This is an automated email from the Tutor-Learning platform.</p></div></body></html>'),
+                    'PENDING',
+                    CURRENT_TIMESTAMP
+                );
+            END
+        """))
+        
+        conn.execute(text("DROP TRIGGER IF EXISTS after_enrollment_insert"))
+        conn.execute(text("""
+            CREATE TRIGGER after_enrollment_insert
+            AFTER INSERT ON Enrollments
+            FOR EACH ROW
+            BEGIN
+                DECLARE v_user_name VARCHAR(100);
+                DECLARE v_user_email VARCHAR(150);
+                DECLARE v_course_title VARCHAR(200);
+
+                SELECT first_name, email INTO v_user_name, v_user_email FROM Users WHERE id = NEW.user_id;
+                SELECT title INTO v_course_title FROM Courses WHERE id = NEW.course_id;
+
+                INSERT INTO EnrollmentsEmailQueue (recipient_email, subject, body, status, created_at)
+                VALUES (
+                    v_user_email,
+                    CONCAT('You have enrolled in: ', v_course_title),
+                    CONCAT('<html><body style="font-family: Arial, sans-serif; color: #333;"><div style="max-width: 600px; margin: 0 auto; padding: 20px;"><h1 style="color: #4CAF50;">Welcome, ', v_user_name, '!</h1><p>You have successfully enrolled in the course:</p><h2 style="color: #2196F3;">', v_course_title, '</h2><p>We hope you enjoy the content and have a great learning experience.</p><p>If you have any questions, your teacher is available to help.</p><br><p style="color: #666; font-size: 12px;">This is an automated email from the Tutor-Learning platform.</p></div></body></html>'),
+                    'PENDING',
+                    CURRENT_TIMESTAMP
+                );
+            END
+        """))
+
     db: Session = SessionLocal()
     
     try:
