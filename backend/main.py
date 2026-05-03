@@ -125,7 +125,7 @@ def create_user(user: schemas.UserCreate, background_tasks: BackgroundTasks, db:
         email_body = gmail_service.get_registration_email_html(db_user.first_name)
         email_record = models.EmailQueue(
             recipient_email=db_user.email,
-            subject="¡Bienvenido a Tutor-Learning!",
+            subject="Welcome to Tutor-Learning!",
             body=email_body,
             status=models.EmailStatus.PENDING
         )
@@ -518,7 +518,7 @@ def create_enrollment(enrollment: schemas.EnrollmentCreate, background_tasks: Ba
         email_body = gmail_service.get_enrollment_email_html(user.first_name, course.title)
         email_record = models.EmailQueue(
             recipient_email=user.email,
-            subject=f"Te has matriculado en: {course.title}",
+            subject=f"You have enrolled in: {course.title}",
             body=email_body,
             status=models.EmailStatus.PENDING
         )

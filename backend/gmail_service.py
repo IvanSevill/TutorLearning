@@ -54,13 +54,13 @@ class GmailService:
         <html>
             <body style="font-family: Arial, sans-serif; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h1 style="color: #4CAF50;">¡Bienvenido/a, {user_name}!</h1>
-                    <p>Te has registrado con éxito en la plataforma <strong>Tutor-Learning</strong>.</p>
-                    <p>Ya puedes empezar a explorar los cursos disponibles y apuntarte a aquellos que más te interesen.</p>
-                    <p>Si tienes alguna duda, no dudes en contactarnos.</p>
+                    <h1 style="color: #4CAF50;">Welcome, {user_name}!</h1>
+                    <p>You have successfully registered on the <strong>Tutor-Learning</strong> platform.</p>
+                    <p>You can now start exploring available courses and enroll in the ones that interest you the most.</p>
+                    <p>If you have any questions, do not hesitate to contact us.</p>
                     <br>
                     <p style="color: #666; font-size: 12px;">
-                        Este es un correo automático de la plataforma Tutor-Learning.
+                        This is an automated email from the Tutor-Learning platform.
                     </p>
                 </div>
             </body>
@@ -73,14 +73,14 @@ class GmailService:
         <html>
             <body style="font-family: Arial, sans-serif; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h1 style="color: #4CAF50;">¡Bienvenido/a, {user_name}!</h1>
-                    <p>Te has matriculado con éxito en el curso:</p>
+                    <h1 style="color: #4CAF50;">Welcome, {user_name}!</h1>
+                    <p>You have successfully enrolled in the course:</p>
                     <h2 style="color: #2196F3;">{course_title}</h2>
-                    <p>Esperamos que disfrutes del contenido y tengas una excelente experiencia de aprendizaje.</p>
-                    <p>Si tienes cualquier duda, el profesor está a tu disposición.</p>
+                    <p>We hope you enjoy the content and have a great learning experience.</p>
+                    <p>If you have any questions, your teacher is available to help.</p>
                     <br>
                     <p style="color: #666; font-size: 12px;">
-                        Este es un correo automático de la plataforma Tutor-Learning.
+                        This is an automated email from the Tutor-Learning platform.
                     </p>
                 </div>
             </body>
