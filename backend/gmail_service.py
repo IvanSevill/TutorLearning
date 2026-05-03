@@ -1,107 +1,55 @@
 import os
-import json
-import base64
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from google.auth.transport.requests import Request
-from google.oauth2.service_account import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google_auth_httplib2 import AuthorizedHttp
-import httplib2
-
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 class GmailService:
-    """Service to send emails using Gmail API"""
-    
-    SCOPES = ['https://www.googleapis.com/auth/gmail.send']
-    
-    def __init__(self, credentials_path: str = "gmail-credentials.json"):
-        self.credentials_path = credentials_path
-        self.service = self._build_service()
-    
-    def _build_service(self):
-        """Builds the Gmail service"""
-        # In Cloud Run / headless environments, skip interactive OAuth entirely.
-        if os.getenv("SKIP_GMAIL_OAUTH"):
-            print("Skipping Gmail OAuth flow because SKIP_GMAIL_OAUTH is set.")
-            return None
+    """Service to send emails using Gmail SMTP with App Password"""
+
+    def __init__(self):
+        self.sender_email = os.getenv("GMAIL_SENDER_EMAIL")
+        self.app_password = os.getenv("GMAIL_APP_PASSWORD")
+
+        if self.sender_email and self.app_password:
+            print(f"Gmail SMTP service initialized for {self.sender_email}")
+        else:
+            print("WARNING: Gmail SMTP credentials not configured. Emails will not be sent.")
+
+    def send_email(self, to_email: str, subject: str, body: str, is_html: bool = True):
+        """Sends an email using Gmail SMTP"""
+        if not self.sender_email or not self.app_password:
+            print("Gmail SMTP not configured, skipping email send.")
+            return False
 
         try:
-            import google.auth.transport.requests
-            from google.oauth2.credentials import Credentials as OAuth2Credentials
-            from googleapiclient.discovery import build
-            
-            # Intentar cargar credenciales guardadas
-            creds = None
-            try:
-                with open('token.json', 'r') as token:
-                    creds_data = json.load(token)
-                    creds = OAuth2Credentials.from_authorized_user_info(creds_data)
-            except FileNotFoundError:
-                # Si no existen, crear flujo de autenticación
-                gmail_client_id = os.getenv("GMAIL_CLIENT_ID")
-                gmail_client_secret = os.getenv("GMAIL_CLIENT_SECRET")
-                gcp_project_id = os.getenv("GCP_PROJECT_ID")
-                
-                client_config = {
-                    "installed": {
-                        "client_id": gmail_client_id,
-                        "client_secret": gmail_client_secret,
-                        "project_id": gcp_project_id,
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                        "redirect_uris": ["http://localhost"]
-                    }
-                }
-                flow = InstalledAppFlow.from_client_config(client_config, self.SCOPES)
-                creds = flow.run_local_server(port=0)
-                
-                with open('token.json', 'w') as token:
-                    token.write(creds.to_json())
-            
-            return build('gmail', 'v1', credentials=creds)
-        except Exception as e:
-            print(f"Error initializing Gmail: {e}")
-            return None
-    
-    def send_email(self, to_email: str, subject: str, body: str, is_html: bool = True):
-        """Sends an email using Gmail API"""
-        if not self.service:
-            print("Gmail service not initialized")
-            return False
-        
-        try:
-            # Crear mensaje
+            # Create message
             message = MIMEMultipart('alternative')
-            message['to'] = to_email
-            message['subject'] = subject
-            
-            # Agregar contenido
+            message['From'] = f"Tutor-Learning <{self.sender_email}>"
+            message['To'] = to_email
+            message['Subject'] = subject
+
+            # Add content
             if is_html:
                 message.attach(MIMEText(body, 'html'))
             else:
                 message.attach(MIMEText(body, 'plain'))
-            
-            # Codificar mensaje
-            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-            
-            # Enviar
-            self.service.users().messages().send(
-                userId='me',
-                body={'raw': raw_message}
-            ).execute()
-            
+
+            # Connect to Gmail SMTP and send
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+                server.login(self.sender_email, self.app_password)
+                server.sendmail(self.sender_email, to_email, message.as_string())
+
             print(f"Email sent successfully to {to_email}")
             return True
-        
+
         except Exception as e:
             print(f"Error sending email: {e}")
             return False
-    
+
     def get_registration_email_html(self, user_name: str):
         """Generates the HTML body for the platform registration welcome email"""
         return f"""
@@ -146,6 +94,7 @@ class GmailService:
         subject = f"Welcome to {course_title}!"
         body = self.get_enrollment_email_html(user_name, course_title)
         return self.send_email(user_email, subject, body, is_html=True)
+
 
 # Global instance of Gmail service
 gmail_service = GmailService()
