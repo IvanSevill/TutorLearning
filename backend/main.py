@@ -22,13 +22,13 @@ def process_email_queue():
     try:
         db = SessionLocal()
         try:
-            # We use a database query (cursor) to fetch all PENDING emails
-            pending_emails = db.query(models.EmailQueue).filter(
-                models.EmailQueue.status == models.EmailStatus.PENDING
+            # Process Registration Emails
+            pending_register = db.query(models.RegisterEmailQueue).filter(
+                models.RegisterEmailQueue.status == models.EmailStatus.PENDING
             ).all()
             
-            for email in pending_emails:
-                print(f"Processing email for {email.recipient_email}...")
+            for email in pending_register:
+                print(f"Processing register email for {email.recipient_email}...")
                 try:
                     success, error_msg = gmail_service.send_email(
                         to_email=email.recipient_email,
@@ -38,17 +38,42 @@ def process_email_queue():
                     )
                     if success:
                         email.status = models.EmailStatus.SENT
-                        print(f"Success sending email to {email.recipient_email}")
+                        print(f"Success sending register email to {email.recipient_email}")
                     else:
                         email.status = models.EmailStatus.FAILED
                         email.body = email.body + f"\n\n--- ERROR LOG ---\n{error_msg}"
-                        print(f"Failed sending email to {email.recipient_email} (service returned False)")
+                        print(f"Failed sending register email to {email.recipient_email} (service returned False)")
                 except Exception as e:
-                    print(f"Exception sending email to {email.recipient_email}: {e}")
+                    print(f"Exception sending register email to {email.recipient_email}: {e}")
                     email.status = models.EmailStatus.FAILED
                     email.body = email.body + f"\n\n--- ERROR LOG ---\n{str(e)}"
-                
-                # Commit changes for this email
+                db.commit()
+
+            # Process Enrollment Emails
+            pending_enrollments = db.query(models.EnrollmentsEmailQueue).filter(
+                models.EnrollmentsEmailQueue.status == models.EmailStatus.PENDING
+            ).all()
+            
+            for email in pending_enrollments:
+                print(f"Processing enrollment email for {email.recipient_email}...")
+                try:
+                    success, error_msg = gmail_service.send_email(
+                        to_email=email.recipient_email,
+                        subject=email.subject,
+                        body=email.body,
+                        is_html=True
+                    )
+                    if success:
+                        email.status = models.EmailStatus.SENT
+                        print(f"Success sending enrollment email to {email.recipient_email}")
+                    else:
+                        email.status = models.EmailStatus.FAILED
+                        email.body = email.body + f"\n\n--- ERROR LOG ---\n{error_msg}"
+                        print(f"Failed sending enrollment email to {email.recipient_email} (service returned False)")
+                except Exception as e:
+                    print(f"Exception sending enrollment email to {email.recipient_email}: {e}")
+                    email.status = models.EmailStatus.FAILED
+                    email.body = email.body + f"\n\n--- ERROR LOG ---\n{str(e)}"
                 db.commit()
         finally:
             db.close()
@@ -92,7 +117,7 @@ def on_startup():
                 AFTER INSERT ON Users
                 FOR EACH ROW
                 BEGIN
-                    INSERT INTO EmailQueue (recipient_email, subject, body, status, created_at)
+                    INSERT INTO RegisterEmailQueue (recipient_email, subject, body, status, created_at)
                     VALUES (
                         NEW.email,
                         'Welcome to Tutor-Learning!',
@@ -117,7 +142,7 @@ def on_startup():
                     SELECT first_name, email INTO v_user_name, v_user_email FROM Users WHERE id = NEW.user_id;
                     SELECT title INTO v_course_title FROM Courses WHERE id = NEW.course_id;
 
-                    INSERT INTO EmailQueue (recipient_email, subject, body, status, created_at)
+                    INSERT INTO EnrollmentsEmailQueue (recipient_email, subject, body, status, created_at)
                     VALUES (
                         v_user_email,
                         CONCAT('You have enrolled in: ', v_course_title),

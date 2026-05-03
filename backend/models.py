@@ -97,12 +97,22 @@ class EmailStatus(enum.Enum):
     SENT = "SENT"
     FAILED = "FAILED"
 
-class EmailQueue(Base):
-    __tablename__ = "EmailQueue"
+class RegisterEmailQueue(Base):
+    __tablename__ = "RegisterEmailQueue"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, index=True)
     recipient_email = Column(String(255), nullable=False)
     subject = Column(String(255), nullable=False)
     body = Column(Text, nullable=False)
-    status = Column(Enum(EmailStatus), default=EmailStatus.PENDING)
+    status = Column(Enum(EmailStatus), default=EmailStatus.PENDING, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class EnrollmentsEmailQueue(Base):
+    __tablename__ = "EnrollmentsEmailQueue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipient_email = Column(String(255), nullable=False)
+    subject = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+    status = Column(Enum(EmailStatus), default=EmailStatus.PENDING, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=text("CURRENT_TIMESTAMP"))
