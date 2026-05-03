@@ -84,11 +84,6 @@ def on_startup():
             conn.commit()
             print("Migration: Added created_at to TextBlocks")
         except Exception: pass
-        try:
-            conn.execute(text("ALTER TABLE TextBlocks ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
-            conn.commit()
-            print("Migration: Added created_at to TextBlocks")
-        except Exception: pass
 
 # Configuration for encrypting passwords
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
