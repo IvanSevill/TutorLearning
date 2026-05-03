@@ -12,8 +12,47 @@ import mimetypes
 
 import schemas
 import models
-from database import get_db, gcs_db, engine
+from database import get_db, gcs_db, engine, SessionLocal
 from gmail_service import gmail_service
+import threading
+import time
+
+def process_email_queue():
+    """Background job that uses a database cursor to process pending emails"""
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                # We use a database query (cursor) to fetch all PENDING emails
+                pending_emails = db.query(models.EmailQueue).filter(
+                    models.EmailQueue.status == models.EmailStatus.PENDING
+                ).all()
+                
+                for email in pending_emails:
+                    print(f"Processing email for {email.recipient_email}...")
+                    try:
+                        success = gmail_service.send_email(
+                            to_email=email.recipient_email,
+                            subject=email.subject,
+                            body=email.body,
+                            is_html=True
+                        )
+                        if success:
+                            email.status = models.EmailStatus.SENT
+                        else:
+                            email.status = models.EmailStatus.FAILED
+                    except Exception as e:
+                        print(f"Exception sending email to {email.recipient_email}: {e}")
+                        email.status = models.EmailStatus.FAILED
+                    
+                    # Commit changes for this email
+                    db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Error in background email job: {e}")
+            
+        time.sleep(10)  # Wait 10 seconds before polling again
 
 app = FastAPI(title="Tutor-Learning-API", version="1.0")
 
@@ -46,6 +85,11 @@ def on_startup():
             conn.commit()
             print("Migration: Added created_at to TextBlocks")
         except Exception: pass
+        
+    # Start background email job
+    print("Starting background email processing job...")
+    thread = threading.Thread(target=process_email_queue, daemon=True)
+    thread.start()
 
 # Configuration for encrypting passwords
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -79,6 +123,22 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    
+    # Insert registration email to queue
+    try:
+        email_body = gmail_service.get_registration_email_html(db_user.first_name)
+        email_record = models.EmailQueue(
+            recipient_email=db_user.email,
+            subject="¡Bienvenido a Tutor-Learning!",
+            body=email_body,
+            status=models.EmailStatus.PENDING
+        )
+        db.add(email_record)
+        db.commit()
+    except Exception as e:
+        print(f"Error queueing registration email: {e}")
+        db.rollback()
+
     return db_user
 
 @app.post("/login/", response_model=schemas.LoginResponse)
@@ -454,12 +514,20 @@ def create_enrollment(enrollment: schemas.EnrollmentCreate, db: Session = Depend
     db.commit()
     db.refresh(db_enrollment)
     
-    # Send welcome email
-    gmail_service.send_welcome_email(
-        user.email,
-        user.first_name,
-        course.title
-    )
+    # Insert enrollment email to queue
+    try:
+        email_body = gmail_service.get_enrollment_email_html(user.first_name, course.title)
+        email_record = models.EmailQueue(
+            recipient_email=user.email,
+            subject=f"Te has matriculado en: {course.title}",
+            body=email_body,
+            status=models.EmailStatus.PENDING
+        )
+        db.add(email_record)
+        db.commit()
+    except Exception as e:
+        print(f"Error queueing enrollment email: {e}")
+        db.rollback()
     
     return db_enrollment
 

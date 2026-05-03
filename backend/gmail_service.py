@@ -102,28 +102,49 @@ class GmailService:
             print(f"Error sending email: {e}")
             return False
     
-    def send_welcome_email(self, user_email: str, user_name: str, course_title: str):
-        """Sends a welcome email to an enrolled student"""
-        subject = f"Welcome to {course_title}!"
-        
-        body = f"""
+    def get_registration_email_html(self, user_name: str):
+        """Generates the HTML body for the platform registration welcome email"""
+        return f"""
         <html>
             <body style="font-family: Arial, sans-serif; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h1 style="color: #4CAF50;">Welcome, {user_name}!</h1>
-                    <p>You have successfully enrolled in the course:</p>
-                    <h2 style="color: #2196F3;">{course_title}</h2>
-                    <p>We hope you enjoy the content and have an excellent learning experience.</p>
-                    <p>If you have any questions, feel free to contact us.</p>
+                    <h1 style="color: #4CAF50;">¡Bienvenido/a, {user_name}!</h1>
+                    <p>Te has registrado con éxito en la plataforma <strong>Tutor-Learning</strong>.</p>
+                    <p>Ya puedes empezar a explorar los cursos disponibles y apuntarte a aquellos que más te interesen.</p>
+                    <p>Si tienes alguna duda, no dudes en contactarnos.</p>
                     <br>
                     <p style="color: #666; font-size: 12px;">
-                        This is an automated email from the Tutor-Learning Platform
+                        Este es un correo automático de la plataforma Tutor-Learning.
                     </p>
                 </div>
             </body>
         </html>
         """
-        
+
+    def get_enrollment_email_html(self, user_name: str, course_title: str):
+        """Generates the HTML body for the course enrollment welcome email"""
+        return f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h1 style="color: #4CAF50;">¡Bienvenido/a, {user_name}!</h1>
+                    <p>Te has matriculado con éxito en el curso:</p>
+                    <h2 style="color: #2196F3;">{course_title}</h2>
+                    <p>Esperamos que disfrutes del contenido y tengas una excelente experiencia de aprendizaje.</p>
+                    <p>Si tienes cualquier duda, el profesor está a tu disposición.</p>
+                    <br>
+                    <p style="color: #666; font-size: 12px;">
+                        Este es un correo automático de la plataforma Tutor-Learning.
+                    </p>
+                </div>
+            </body>
+        </html>
+        """
+
+    def send_welcome_email(self, user_email: str, user_name: str, course_title: str):
+        """Sends a welcome email to an enrolled student (legacy direct send)"""
+        subject = f"Welcome to {course_title}!"
+        body = self.get_enrollment_email_html(user_name, course_title)
         return self.send_email(user_email, subject, body, is_html=True)
 
 # Global instance of Gmail service
