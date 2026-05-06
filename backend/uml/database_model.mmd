@@ -1,77 +1,92 @@
+---
+id: 3a98bd6a-5ada-485e-993d-7146a5d7282b
+---
 erDiagram
-    AssignmentSubmissions {
-        integer user_id PK FK 
-        integer assignment_id PK FK 
-        datetime submission_date 
-        decimal_5__2 grade 
-        varchar_500 submission_file_url 
-    }
-    Assignments {
-        integer id PK 
-        integer course_id FK 
-        varchar_200 title 
-        text description 
-        datetime due_date 
-        datetime created_at 
-    }
-    Courses {
-        integer id PK 
-        varchar_200 title 
-        text description 
-        tinyint is_visible 
-        tinyint is_enrollable 
-        integer teacher_id FK 
-        varchar_500 image_url 
-    }
-    Enrollments {
-        integer user_id PK FK 
-        integer course_id PK FK 
-        datetime enrollment_date 
-    }
-    EnrollmentsEmailQueue {
-        integer id PK 
-        varchar_255 recipient_email 
-        varchar_255 subject 
-        text body 
-        enum status 
-        datetime created_at 
-    }
-    Files {
-        integer id PK 
-        integer course_id FK 
-        varchar_255 file_name 
-        varchar_50 mime_type 
-        varchar_500 gcs_url 
-        datetime upload_date 
-    }
-    RegisterEmailQueue {
-        integer id PK 
-        varchar_255 recipient_email 
-        varchar_255 subject 
-        text body 
-        enum status 
-        datetime created_at 
-    }
-    TextBlocks {
-        integer id PK 
-        integer course_id FK 
-        varchar_200 title 
-        text content 
-        datetime created_at 
-    }
     Users {
-        integer id PK 
-        varchar_100 first_name 
-        varchar_100 last_name 
-        varchar_150 email 
-        tinyint is_teacher 
-        varchar_255 password_hash 
+        int id PK
+        string first_name
+        string last_name
+        string email
+        boolean is_teacher
+        string password_hash
     }
-    Assignments ||--o{ AssignmentSubmissions : "assignment_id"
-    Courses ||--o{ Assignments : "course_id"
-    Courses ||--o{ Enrollments : "course_id"
-    Courses ||--o{ Files : "course_id"
-    Courses ||--o{ TextBlocks : "course_id"
-    Users ||--o{ AssignmentSubmissions : "user_id"
-    Users ||--o{ Courses : "teacher_id"
-    Users ||--o{ Enrollments : "user_id"
+
+    Courses {
+        int id PK
+        int teacher_id FK
+        string title
+        text description
+        boolean is_visible
+        boolean is_enrollable
+        string image_url
+    }
+
+    Assignments {
+        int id PK
+        int course_id FK
+        string title
+        text description
+        datetime due_date
+        datetime created_at
+    }
+
+    AssignmentSubmissions {
+        int user_id PK
+        int assignment_id PK
+        datetime submission_date
+        float grade
+        string submission_file_url
+    }
+
+    Enrollments {
+        int user_id PK
+        int course_id PK
+        datetime enrollment_date
+    }
+
+    Files {
+        int id PK
+        int course_id FK
+        string file_name
+        string mime_type
+        string gcs_url
+        datetime upload_date
+    }
+
+    TextBlocks {
+        int id PK
+        int course_id FK
+        string title
+        text content
+        datetime created_at
+    }
+
+    EnrollmentsEmailQueue {
+        int id PK
+        string recipient_email
+        string subject
+        text body
+        string status
+        datetime created_at
+    }
+
+    RegisterEmailQueue {
+        int id PK
+        string recipient_email
+        string subject
+        text body
+        string status
+        datetime created_at
+    }
+
+    %% Relaciones
+    Users ||--o{ Courses : "manages"
+    Users ||--o{ Enrollments : "enrolls"
+    Users ||--o{ AssignmentSubmissions : "submits"
+    
+    Courses ||--o{ Enrollments : "has"
+    Courses ||--o{ Assignments : "contains"
+    Courses ||--o{ Files : "includes"
+    Courses ||--o{ TextBlocks : "shows"
+    
+    Assignments ||--o{ AssignmentSubmissions : "receives"
