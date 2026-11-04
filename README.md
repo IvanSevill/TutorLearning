@@ -2,6 +2,8 @@
 
 A web app where teachers run online courses and students enroll, read course posts, and submit assignments.
 
+This was a class project and is not under active development.
+
 > **Unfinished, not safe to expose.** The API has no access control. Run it locally. See [Status and limits](#status-and-limits).
 
 ![Course dashboard showing three enrolled courses](docs/assets/screenshot.png)
