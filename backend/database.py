@@ -99,7 +99,7 @@ gcs_db = GCSDatabase(bucket)
 DB_USER = os.getenv("DB_USER", "FastAPI")
 DB_PASS = os.getenv("DB_PASSWORD", "")
 DB_NAME = os.getenv("DB_NAME", "tutor-learning-db")
-DB_HOST = os.getenv("DB_HOST", "34.154.122.155")
+DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT", "3306")
 
 # Cloud Run connects via Unix socket through the Auth Proxy sidecar
@@ -112,7 +112,10 @@ if INSTANCE_UNIX_SOCKET:
         f"@/{DB_NAME}?unix_socket={INSTANCE_UNIX_SOCKET}"
     )
 else:
-    # Local dev: direct TCP connection to public IP
+    # Direct TCP connection. There is no default host, so that a missing setting
+    # can never connect to, or seed, a database nobody chose.
+    if not DB_HOST:
+        raise RuntimeError("DB_HOST is required unless INSTANCE_UNIX_SOCKET is set.")
     SQLALCHEMY_DATABASE_URL = (
         f"mysql+pymysql://{quote_plus(DB_USER)}:{quote_plus(DB_PASS)}"
         f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"

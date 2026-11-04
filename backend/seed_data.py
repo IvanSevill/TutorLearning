@@ -1,20 +1,45 @@
 import os
 import datetime
 import random
+import secrets
 from sqlalchemy.orm import Session
 from database import engine, SessionLocal, Base
 from models import User, Course, Enrollment, Assignment, AssignmentSubmission, TextBlock
 from main import get_password_hash
 
-def seed_database():
-    print("Dropping all existing tables...")
-    Base.metadata.drop_all(bind=engine)
-    
-    print("Recreating tables...")
-    Base.metadata.create_all(bind=engine)
-    
-    # Recreate Triggers
-    print("Recreating triggers...")
+# Invented people. example.com is reserved (RFC 2606), so these are not anyone's addresses.
+TEACHERS = [
+    ("Nora", "Vance", "nora.vance@example.com"),
+    ("Theo", "Marsh", "theo.marsh@example.com"),
+    ("Imani", "Castellan", "imani.castellan@example.com"),
+    ("Rowan", "Pell", "rowan.pell@example.com"),
+    ("Oriel", "Thackett", "oriel.thackett@example.com"),
+    ("Soren", "Bly", "soren.bly@example.com"),
+    ("Mina", "Okafor-Lund", "mina.okafor-lund@example.com"),
+    ("Tomas", "Quill", "tomas.quill@example.com"),
+    ("Adele", "Fenwick", "adele.fenwick@example.com"),
+    ("Kiran", "Dovey", "kiran.dovey@example.com"),
+]
+
+STUDENTS = [
+    ("Sam", "Rivera", "sam.rivera@example.com"),
+    ("Lena", "Ortiz", "lena.ortiz@example.com"),
+    ("Juno", "Arkwright", "juno.arkwright@example.com"),
+    ("Milo", "Trent", "milo.trent@example.com"),
+    ("Esme", "Varga", "esme.varga@example.com"),
+    ("Dara", "Holloway", "dara.holloway@example.com"),
+    ("Felix", "Noor", "felix.noor@example.com"),
+    ("Wren", "Tallis", "wren.tallis@example.com"),
+    ("Arlo", "Benn", "arlo.benn@example.com"),
+    ("Talia", "Morrow", "talia.morrow@example.com"),
+]
+
+def get_seed_password():
+    """SEED_USER_PASSWORD if set, otherwise a new random password for this run"""
+    return os.getenv("SEED_USER_PASSWORD") or secrets.token_urlsafe(16)
+
+def create_email_triggers():
+    """Run after the seed rows exist: the triggers queue mail for every later insert"""
     with engine.begin() as conn:
         from sqlalchemy import text
         conn.execute(text("DROP TRIGGER IF EXISTS after_user_insert"))
@@ -58,57 +83,42 @@ def seed_database():
             END
         """))
 
+
+def seed_database():
+    print("Dropping all existing tables...")
+    Base.metadata.drop_all(bind=engine)
+    
+    print("Recreating tables...")
+    Base.metadata.create_all(bind=engine)
+    
+    seed_password = get_seed_password()
+    password_hash = get_password_hash(seed_password)
+
     db: Session = SessionLocal()
     
     try:
         print("Inserting mock users (Teachers)...")
-        teachers_data = [
-            ("Prof", "Oak", "oak@tutorlearning.com"),
-            ("Dr.", "Elm", "elm@tutorlearning.com"),
-            ("Prof", "Birch", "birch@tutorlearning.com"),
-            ("Prof", "Rowan", "rowan@tutorlearning.com"),
-            ("Albus", "Dumbledore", "albus@hogwarts.edu"),
-            ("Severus", "Snape", "snape@hogwarts.edu"),
-            ("Linus", "Torvalds", "linus@kernel.org"),
-            ("Marie", "Curie", "marie@science.fr"),
-            ("Gordon", "Ramsay", "gordon@kitchen.uk"),
-            ("Ada", "Lovelace", "ada@computing.io")
-        ]
-        
         teachers = []
-        for first, last, email in teachers_data:
+        for first, last, email in TEACHERS:
             teacher = User(
                 first_name=first,
                 last_name=last,
                 email=email,
                 is_teacher=True,
-                password_hash=get_password_hash("password123")
+                password_hash=password_hash
             )
             teachers.append(teacher)
             db.add(teacher)
         
         print("Inserting mock users (Students)...")
-        students_data = [
-            ("Ash", "Ketchum", "ash@tutorlearning.com"),
-            ("Misty", "Waterflower", "misty@tutorlearning.com"),
-            ("Brock", "Harrison", "brock@tutorlearning.com"),
-            ("Dawn", "Berlitz", "dawn@tutorlearning.com"),
-            ("Gary", "Oak", "gary@tutorlearning.com"),
-            ("Harry", "Potter", "harry@hogwarts.edu"),
-            ("Hermione", "Granger", "hermione@hogwarts.edu"),
-            ("Ron", "Weasley", "ron@hogwarts.edu"),
-            ("Elliot", "Alderson", "elliot@mrrobot.com"),
-            ("Marie", "Schrader", "marie@breakingbad.com")
-        ]
-        
         students = []
-        for first, last, email in students_data:
+        for first, last, email in STUDENTS:
             student = User(
                 first_name=first,
                 last_name=last,
                 email=email,
                 is_teacher=False,
-                password_hash=get_password_hash("password123")
+                password_hash=password_hash
             )
             students.append(student)
             db.add(student)
@@ -121,41 +131,41 @@ def seed_database():
         
         course_templates = [
             # Pokemon
-            ("Introduction to Pokemon Biology", "A comprehensive study on the habitats, behaviors, and evolution of species.", "Oak"),
-            ("Advanced Potion Making", "Learn how to craft full restores, max potions, and elixirs.", "Elm"),
-            ("Hoenn Region Habitats", "Explore the diverse climates and unique Pokemon distributions of Hoenn.", "Birch"),
-            ("Pokemon Evolution Lore", "Deep dive into the ancient history of mythical evolutions.", "Rowan"),
+            ("Introduction to Pokemon Biology", "A comprehensive study on the habitats, behaviors, and evolution of species.", "Vance"),
+            ("Advanced Potion Making", "Learn how to craft full restores, max potions, and elixirs.", "Marsh"),
+            ("Hoenn Region Habitats", "Explore the diverse climates and unique Pokemon distributions of Hoenn.", "Castellan"),
+            ("Pokemon Evolution Lore", "Deep dive into the ancient history of mythical evolutions.", "Pell"),
             
             # Magic
-            ("Defense Against the Dark Arts", "Mastering defensive spells and recognizing dark creatures.", "Dumbledore"),
-            ("Potions and Alchemy", "The delicate art of potion-making and chemical transformations.", "Snape"),
-            ("Transfiguration 101", "The science of changing one object into another.", "Albus"),
-            ("Care of Magical Creatures", "How to feed, groom, and not get killed by a Hippogriff.", "Rowan"),
+            ("Defense Against the Dark Arts", "Mastering defensive spells and recognizing dark creatures.", "Thackett"),
+            ("Potions and Alchemy", "The delicate art of potion-making and chemical transformations.", "Bly"),
+            ("Transfiguration 101", "The science of changing one object into another.", "Thackett"),
+            ("Care of Magical Creatures", "How to feed, groom, and not get killed by a Hippogriff.", "Pell"),
             
             # Tech
-            ("Kernel Development", "Understanding the heart of the Linux operating system.", "Linus"),
-            ("History of Computing", "From the Analytical Engine to modern AI.", "Ada"),
-            ("Fullstack Web Development", "Building modern applications with React and FastAPI.", "Ada"),
-            ("Cybersecurity Essentials", "Protecting systems from digital attacks and vulnerabilities.", "Linus"),
+            ("Kernel Development", "Understanding the heart of the Linux operating system.", "Okafor-Lund"),
+            ("History of Computing", "From the Analytical Engine to modern AI.", "Dovey"),
+            ("Fullstack Web Development", "Building modern applications with React and FastAPI.", "Dovey"),
+            ("Cybersecurity Essentials", "Protecting systems from digital attacks and vulnerabilities.", "Okafor-Lund"),
             
             # Science
-            ("Radioactivity and Physics", "The groundbreaking study of atomic decay and energy.", "Marie"),
-            ("Organic Chemistry", "The study of carbon-based compounds and their reactions.", "Marie"),
-            ("Quantum Mechanics", "Exploring the behavior of matter and energy at the molecular level.", "Rowan"),
+            ("Radioactivity and Physics", "The groundbreaking study of atomic decay and energy.", "Quill"),
+            ("Organic Chemistry", "The study of carbon-based compounds and their reactions.", "Quill"),
+            ("Quantum Mechanics", "Exploring the behavior of matter and energy at the molecular level.", "Pell"),
             
             # Arts & Cooking
-            ("Mastering the Beef Wellington", "Gordon Ramsay's signature dish explained step-by-step.", "Gordon"),
-            ("Kitchen Management", "How to run a 3-star Michelin kitchen without losing your mind.", "Gordon"),
-            ("Fine Arts History", "A journey through the Renaissance and Impressionism.", "Oak"),
+            ("Mastering the Beef Wellington", "A classic showpiece dish explained step-by-step.", "Fenwick"),
+            ("Kitchen Management", "How to run a 3-star Michelin kitchen without losing your mind.", "Fenwick"),
+            ("Fine Arts History", "A journey through the Renaissance and Impressionism.", "Vance"),
             
             # Miscellaneous
-            ("Modern Philosophy", "Analyzing the works of Kant, Nietzsche, and Satre.", "Elm"),
-            ("World War II Strategy", "An in-depth look at the major battles and political moves.", "Birch"),
-            ("Marine Biology", "Life under the sea, from coral reefs to the deep abyss.", "Misty"), # Oops, Misty isn't a teacher in our list, I'll fix
-            ("Game Theory", "Mathematical models of strategic interaction between rational decision-makers.", "Ada"),
-            ("Ancient Egyptology", "Pyramids, pharaohs, and the secrets of the Nile.", "Rowan"),
-            ("Photography Basics", "Lighting, composition, and the soul of the image.", "Oak"),
-            ("Introduction to Psychology", "Understanding human behavior and the mind.", "Elm")
+            ("Modern Philosophy", "Analyzing the works of Kant, Nietzsche, and Satre.", "Marsh"),
+            ("World War II Strategy", "An in-depth look at the major battles and political moves.", "Castellan"),
+            ("Marine Biology", "Life under the sea, from coral reefs to the deep abyss.", "Quill"),
+            ("Game Theory", "Mathematical models of strategic interaction between rational decision-makers.", "Dovey"),
+            ("Ancient Egyptology", "Pyramids, pharaohs, and the secrets of the Nile.", "Pell"),
+            ("Photography Basics", "Lighting, composition, and the soul of the image.", "Vance"),
+            ("Introduction to Psychology", "Understanding human behavior and the mind.", "Marsh")
         ]
         
         course_image_map = {
@@ -271,6 +281,9 @@ def seed_database():
         
         db.add_all(posts)
         db.commit()
+
+        print("Recreating triggers...")
+        create_email_triggers()
         
         print("\nDatabase successfully seeded with MASSIVE data!")
         print("=============================")
@@ -279,13 +292,9 @@ def seed_database():
         print(f"Courses: {len(courses)}")
         print(f"Enrollments: {len(enrollments)}")
         print("=============================")
-        print("Test Accounts (Password: password123)")
-        print("- Oak: oak@tutorlearning.com")
-        print("- Dumbledore: albus@hogwarts.edu")
-        print("- Snape: snape@hogwarts.edu")
-        print("- Ramsay: gordon@kitchen.uk")
-        print("- Ash: ash@tutorlearning.com")
-        print("- Harry: harry@hogwarts.edu")
+        print(f"Test Accounts (Password: {seed_password})")
+        print(f"- Teacher: {TEACHERS[0][2]}")
+        print(f"- Student: {STUDENTS[0][2]}")
         print("=============================")
         
     except Exception as e:

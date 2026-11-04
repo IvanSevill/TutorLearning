@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 import mimetypes
+from urllib.parse import urlsplit, unquote
 
 import schemas
 import models
@@ -173,16 +174,6 @@ def verify_password(plain_password: str, hashed_password: str):
 def read_root():
     return {"message": "Welcome to the Tutor-Learning Platform Backend!"}
 
-@app.post("/api/debug/seed")
-def trigger_seed_database():
-    """Temporary endpoint to seed the database in production"""
-    try:
-        from seed_data import seed_database
-        seed_database()
-        return {"message": "Database wiped and seeded successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/users/", response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Creates a new user"""
@@ -301,9 +292,13 @@ def delete_course(course_id: int, db: Session = Depends(get_db)):
     
     # Delete related entities first (manual cascade to be safe)
     db.query(models.Enrollment).filter(models.Enrollment.course_id == course_id).delete()
+    course_assignment_ids = db.query(models.Assignment.id).filter(models.Assignment.course_id == course_id)
+    db.query(models.AssignmentSubmission).filter(
+        models.AssignmentSubmission.assignment_id.in_(course_assignment_ids)
+    ).delete(synchronize_session=False)
     db.query(models.Assignment).filter(models.Assignment.course_id == course_id).delete()
     db.query(models.TextBlock).filter(models.TextBlock.course_id == course_id).delete()
-    db.query(models.CourseFile).filter(models.CourseFile.course_id == course_id).delete()
+    db.query(models.File).filter(models.File.course_id == course_id).delete()
     
     db.delete(db_course)
     db.commit()
@@ -352,9 +347,25 @@ def get_file_redirect(file_id: int, db: Session = Depends(get_db)):
         except Exception:
             return RedirectResponse(url=db_file.gcs_url)
 
+def is_course_image_url(url: str) -> bool:
+    """True only for an https URL of a course image in this app's own bucket"""
+    if not gcs_db.bucket or any(ord(char) <= 32 or char == "\\" for char in url):
+        return False
+    parts = urlsplit(url)
+    return (
+        parts.scheme == "https"
+        and parts.netloc == "storage.googleapis.com"
+        and parts.path.startswith(f"/{gcs_db.bucket.name}/courses/")
+        and not parts.query
+        and not parts.fragment
+        and ".." not in unquote(parts.path).split("/")
+    )
+
 @app.get("/proxy-image")
 def proxy_image(url: str):
-    """Redirects to a signed GCS URL for an image"""
+    """Redirects to a signed GCS URL for a course image in this app's bucket"""
+    if not is_course_image_url(url):
+        raise HTTPException(status_code=400, detail="URL is not a course image in this app's storage")
     try:
         signed_url = gcs_db.get_signed_url(url)
         return RedirectResponse(url=signed_url)
