@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { API_URL } from '../constants';
+import { authService } from '../api';
 
 const Auth = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -7,17 +7,13 @@ const Auth = ({ onLogin }) => {
     email: '',
     password: '',
     first_name: '',
-    last_name: '',
-    is_teacher: false
+    last_name: ''
   });
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -26,38 +22,22 @@ const Auth = ({ onLogin }) => {
     console.log("Submitting Auth form", { isLogin, email: formData.email });
     
     try {
-      const endpoint = isLogin ? '/login/' : '/users/';
-      const body = isLogin 
-        ? { email: formData.email, password: formData.password }
-        : { 
-            first_name: formData.first_name, 
-            last_name: formData.last_name, 
-            email: formData.email, 
-            password: formData.password, 
-            is_teacher: formData.is_teacher 
-          };
-
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        if (isLogin) {
-          onLogin(data.user);
-        } else {
-          alert('Registration successful! Please login.');
-          setIsLogin(true);
-        }
+      if (isLogin) {
+        onLogin(await authService.login({ email: formData.email, password: formData.password }));
       } else {
-        console.error("Auth error response:", data);
-        setError(data.detail || 'Operation failed');
+        await authService.register({
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          email: formData.email,
+          password: formData.password
+        });
+        alert('Registration successful! Please login.');
+        setIsLogin(true);
       }
     } catch (err) {
-      console.error("Network error:", err);
-      setError('Server unreachable. Make sure backend is running.');
+      console.error("Auth error:", err);
+      // fetch() throws a TypeError when it cannot reach the server at all.
+      setError(err instanceof TypeError ? 'Server unreachable. Make sure backend is running.' : err.message);
     }
   };
 
@@ -76,13 +56,6 @@ const Auth = ({ onLogin }) => {
         )}
         <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
         <input type="password" name="password" placeholder="Password" onChange={handleChange} required />
-        
-        {!isLogin && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-            <input type="checkbox" name="is_teacher" checked={formData.is_teacher} onChange={handleChange} style={{ width: 'auto', margin: 0 }} />
-            Register as Teacher
-          </label>
-        )}
 
         <button type="submit" style={{ width: '100%', marginTop: '1rem' }}>
           {isLogin ? 'Login' : 'Sign Up'}

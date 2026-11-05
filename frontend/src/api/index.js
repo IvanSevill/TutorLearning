@@ -1,17 +1,32 @@
 import { API_URL } from '../constants';
 
+// Kept in memory only. After a page reload, authService.getSession() fetches it again.
+let csrfToken = null;
+let onUnauthorized = () => {};
+
+export const setUnauthorizedHandler = (handler) => {
+  onUnauthorized = handler;
+};
+
+const csrfHeaders = (method) => (
+  method !== 'GET' && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}
+);
+
 const request = async (endpoint, options = {}) => {
   const { headers, ...rest } = options;
   const config = {
     ...rest,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...csrfHeaders(rest.method),
       ...headers,
     },
   };
 
   const response = await fetch(`${API_URL}${endpoint}`, config);
   
+  if (response.status === 401) onUnauthorized();
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Something went wrong');
@@ -32,16 +47,39 @@ export const api = {
     const response = await fetch(`${API_URL}${endpoint}`, {
       method,
       body: formData,
+      credentials: 'include',
+      headers: csrfHeaders(method),
     });
+    if (response.status === 401) onUnauthorized();
     if (!response.ok) throw new Error('Upload failed');
     return response.json();
   }
 };
 
+const startSession = (session) => {
+  csrfToken = session.csrf_token;
+  return session.user;
+};
+
+export const authService = {
+  register: (data) => api.post('/users/', data),
+  login: async (credentials) => startSession(await api.post('/login/', credentials)),
+  getSession: async () => startSession(await api.get('/session/')),
+  logout: async () => {
+    await api.post('/logout/');
+    csrfToken = null;
+  },
+};
+
+export const adminService = {
+  getUsers: () => api.get('/users/'),
+  setTeacher: (email, isTeacher) => api.put(`/users/${encodeURIComponent(email)}/teacher`, { is_teacher: isTeacher }),
+};
+
 export const courseService = {
-  getAllAvailable: (userId) => api.get(`/courses/available/${userId}`),
-  getMyEnrollments: (userId) => api.get(`/enrollments/user/${userId}`),
-  getTeaching: (teacherId) => api.get(`/courses/teacher/${teacherId}`),
+  getAllAvailable: () => api.get('/courses/available'),
+  getMyEnrollments: () => api.get('/enrollments/me'),
+  getTeaching: () => api.get('/courses/teaching'),
   create: (data) => api.post('/courses/', data),
   update: (id, data) => api.put(`/courses/${id}`, data),
   updateImage: (id, formData) => api.upload(`/courses/${id}/image`, formData, 'PATCH'),
@@ -57,8 +95,8 @@ export const assignmentService = {
   update: (id, data) => api.put(`/assignments/${id}`, data),
   delete: (id) => api.delete(`/assignments/${id}`),
   submit: (data) => api.post('/submissions/', data),
-  getSubmissionsForCourse: (courseId, userId) => api.get(`/submissions/course/${courseId}/user/${userId}`),
-  deleteSubmission: (assignmentId, userId) => api.delete(`/submissions/assignment/${assignmentId}/user/${userId}`),
+  getMySubmissionsForCourse: (courseId) => api.get(`/submissions/course/${courseId}/me`),
+  deleteMySubmission: (assignmentId) => api.delete(`/submissions/assignment/${assignmentId}/me`),
 };
 
 export const postService = {

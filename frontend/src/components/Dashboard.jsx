@@ -3,6 +3,7 @@ import { courseService, enrollmentService } from '../api';
 import { useNotification } from '../hooks/useNotification';
 import DashboardNav from './dashboard/DashboardNav';
 import CourseCard from './dashboard/CourseCard';
+import AdminUsers from './dashboard/AdminUsers';
 import Modal from './common/Modal';
 
 const Dashboard = ({ user, onLogout, onSelectCourse }) => {
@@ -15,16 +16,17 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
   const [newCourse, setNewCourse] = useState({ title: '', description: '' });
 
   const fetchData = useCallback(async () => {
+    if (activeTab === 'admin') return;
     setLoading(true);
     try {
       let data;
       if (activeTab === 'my') {
-        const enrollments = await courseService.getMyEnrollments(user.id);
+        const enrollments = await courseService.getMyEnrollments();
         data = enrollments.map(enr => enr.course);
       } else if (activeTab === 'teaching') {
-        data = await courseService.getTeaching(user.id);
+        data = await courseService.getTeaching();
       } else {
-        data = await courseService.getAllAvailable(user.id);
+        data = await courseService.getAllAvailable();
       }
       setCourses(data);
     } catch {
@@ -32,13 +34,13 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
     } finally {
       setLoading(false);
     }
-  }, [user.id, activeTab, showNotify]);
+  }, [activeTab, showNotify]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleEnroll = async (courseId) => {
     try {
-      await enrollmentService.enroll({ user_id: user.id, course_id: courseId });
+      await enrollmentService.enroll({ course_id: courseId });
       showNotify("Successfully enrolled!");
       fetchData();
     } catch (err) {
@@ -49,7 +51,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
   const handleUnenroll = async (courseId) => {
     if (!window.confirm("Are you sure you want to unenroll?")) return;
     try {
-      await enrollmentService.leave({ user_id: user.id, course_id: courseId });
+      await enrollmentService.leave({ course_id: courseId });
       showNotify("Successfully unenrolled");
       fetchData();
     } catch (err) {
@@ -63,8 +65,7 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
       await courseService.create({
         ...newCourse,
         is_visible: false,
-        is_enrollable: true,
-        teacher_id: user.id
+        is_enrollable: true
       });
       showNotify("Course created successfully!");
       setShowCreateModal(false);
@@ -90,10 +91,15 @@ const Dashboard = ({ user, onLogout, onSelectCourse }) => {
           {user.is_teacher && (
             <div className={`tab ${activeTab === 'teaching' ? 'active' : ''}`} onClick={() => setActiveTab('teaching')}>🎓 Teaching</div>
           )}
+          {user.is_admin && (
+            <div className={`tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>🛠️ Users</div>
+          )}
         </div>
       </div>
 
-      {loading ? (
+      {activeTab === 'admin' ? (
+        <AdminUsers />
+      ) : loading ? (
         <div style={{ textAlign: 'center', padding: '5rem' }}><div className="spinner" /></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

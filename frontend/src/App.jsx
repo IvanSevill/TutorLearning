@@ -4,7 +4,7 @@ import './index.css';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
 import CourseDetails from './components/CourseDetails';
-import { courseService } from './api';
+import { authService, courseService, setUnauthorizedHandler } from './api';
 
 const ProtectedRoute = ({ user, children }) => {
   if (!user) return <Navigate to="/login" replace />;
@@ -12,24 +12,36 @@ const ProtectedRoute = ({ user, children }) => {
 };
 
 function AppContent() {
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [user, setUser] = useState(null);
+  const [checkingSession, setCheckingSession] = useState(true);
   
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Older versions kept the user record here. The session cookie decides now.
+    localStorage.removeItem('user');
+    setUnauthorizedHandler(() => setUser(null));
+    authService.getSession()
+      .then(setUser)
+      .catch(() => {})
+      .finally(() => setCheckingSession(false));
+  }, []);
+
   const handleLogin = (userData) => {
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
     navigate('/');
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } finally {
+      setUser(null);
+      navigate('/login');
+    }
   };
+
+  if (checkingSession) return <div className="container"><div className="spinner" /></div>;
 
   return (
     <Routes>

@@ -39,7 +39,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
         courseService.getTasks(course.id),
         courseService.getStudents(course.id),
         courseService.getFiles(course.id),
-        assignmentService.getSubmissionsForCourse(course.id, user.id)
+        assignmentService.getMySubmissionsForCourse(course.id)
       ]);
       setFeed(feedData);
       setTasks(tasksData);
@@ -51,7 +51,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
     } finally {
       setLoading(false);
     }
-  }, [course.id, user.id, showNotify]);
+  }, [course.id, showNotify]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -146,7 +146,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
   const handleLeaveCourse = async () => {
     if (!window.confirm('Are you sure you want to leave this course?')) return;
     try {
-      await enrollmentService.leave({ user_id: user.id, course_id: course.id });
+      await enrollmentService.leave({ course_id: course.id });
       showNotify('Left course successfully');
       onBack();
     } catch (error) {
@@ -161,7 +161,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
       const formData = new FormData();
       formData.append('file', file);
       const { url } = await fileService.uploadGeneral(formData);
-      await assignmentService.submit({ user_id: user.id, assignment_id: taskId, submission_file_url: url });
+      await assignmentService.submit({ assignment_id: taskId, submission_file_url: url });
       showNotify('Submitted successfully!');
       fetchData();
     } catch (error) {
@@ -172,7 +172,7 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
   const handleDeleteSubmission = async (taskId) => {
     if (!window.confirm('Are you sure you want to delete your submission?')) return;
     try {
-      await assignmentService.deleteSubmission(taskId, user.id);
+      await assignmentService.deleteMySubmission(taskId);
       showNotify('Submission deleted');
       fetchData();
     } catch (error) {
