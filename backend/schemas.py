@@ -8,18 +8,30 @@ class UserBase(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    is_teacher: bool = False
 
 class UserCreate(UserBase):
     password: str
 
+    class Config:
+        extra = "forbid"
+
 class UserUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    is_teacher: Optional[bool] = None
+
+    class Config:
+        extra = "forbid"
+
+class UserTeacherUpdate(BaseModel):
+    is_teacher: bool
+
+    class Config:
+        extra = "forbid"
 
 class UserResponse(UserBase):
     id: int
+    is_teacher: bool
+    is_admin: bool
 
     class Config:
         orm_mode = True
@@ -45,7 +57,8 @@ class CourseBase(BaseModel):
     image_url: Optional[str] = None
 
 class CourseCreate(CourseBase):
-    teacher_id: Optional[int] = None
+    class Config:
+        extra = "forbid"
 
 class CourseUpdate(BaseModel):
     title: Optional[str] = None
@@ -53,10 +66,18 @@ class CourseUpdate(BaseModel):
     is_visible: Optional[bool] = None
     is_enrollable: Optional[bool] = None
 
+class CourseTeacher(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+
+    class Config:
+        orm_mode = True
+
 class CourseResponse(CourseBase):
     id: int
     teacher_id: Optional[int] = None
-    teacher: Optional[UserResponse] = None
+    teacher: Optional[CourseTeacher] = None
 
     class Config:
         orm_mode = True
@@ -65,7 +86,9 @@ class CourseResponse(CourseBase):
 
 class EnrollmentCreate(BaseModel):
     course_id: int
-    user_id: int
+
+    class Config:
+        extra = "forbid"
 
 class EnrollmentResponse(BaseModel):
     user_id: int
@@ -84,6 +107,18 @@ class EnrollmentListResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+class RosterUser(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    email: Optional[str] = None
+
+class EnrollmentRosterResponse(BaseModel):
+    user_id: int
+    course_id: int
+    enrollment_date: datetime
+    user: RosterUser
 
 # ===================== ASSIGNMENTS =====================
 
@@ -114,9 +149,12 @@ class AssignmentSubmissionBase(BaseModel):
     grade: Optional[float] = None
     submission_file_url: Optional[str] = None
 
-class AssignmentSubmissionCreate(AssignmentSubmissionBase):
+class AssignmentSubmissionCreate(BaseModel):
     assignment_id: int
-    user_id: int
+    submission_file_url: Optional[str] = None
+
+    class Config:
+        extra = "forbid"
 
 class AssignmentSubmissionUpdate(BaseModel):
     grade: Optional[float] = None

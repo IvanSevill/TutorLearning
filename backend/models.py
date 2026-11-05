@@ -12,6 +12,7 @@ class User(Base):
     last_name = Column(String(100), nullable=False)
     email = Column(String(150), unique=True, nullable=False)
     is_teacher = Column(Boolean, default=False, nullable=False)
+    is_admin = Column(Boolean, default=False, nullable=False, server_default=text("0"))
     password_hash = Column(String(255), nullable=False)
 
     enrollments = relationship("Enrollment", back_populates="user")

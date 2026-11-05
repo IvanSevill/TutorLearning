@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse, Response
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 import uuid
@@ -108,6 +109,10 @@ def on_startup():
             print("Migration: Added created_at to Assignments")
         except Exception: pass
         
+        try:
+            conn.execute(text("ALTER TABLE Users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+            print("Migration: Added is_admin to Users")
         except Exception: pass
         
         # Database Triggers for Email Queue
@@ -169,6 +174,45 @@ def get_password_hash(password: str):
 def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
+# ================== ACCESS CHECKS ==================
+
+def require_teacher(user: models.User = Depends(auth.get_current_user)) -> models.User:
+    if not user.is_teacher:
+        raise HTTPException(status_code=403, detail="Only teachers can do this")
+    return user
+
+def require_admin(user: models.User = Depends(auth.get_current_user)) -> models.User:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can do this")
+    return user
+
+def get_course_or_404(db: Session, course_id: int) -> models.Course:
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return course
+
+def is_enrolled(db: Session, user: models.User, course_id: int) -> bool:
+    return db.query(models.Enrollment).filter(
+        models.Enrollment.user_id == user.id,
+        models.Enrollment.course_id == course_id
+    ).first() is not None
+
+def is_course_member(db: Session, user: models.User, course: models.Course) -> bool:
+    return course.teacher_id == user.id or is_enrolled(db, user, course.id)
+
+def require_course_owner(db: Session, user: models.User, course_id: int) -> models.Course:
+    course = get_course_or_404(db, course_id)
+    if course.teacher_id != user.id:
+        raise HTTPException(status_code=403, detail="Only this course's teacher can do this")
+    return course
+
+def require_course_member(db: Session, user: models.User, course_id: int) -> models.Course:
+    course = get_course_or_404(db, course_id)
+    if not is_course_member(db, user, course):
+        raise HTTPException(status_code=403, detail="You are not a member of this course")
+    return course
+
 # ================== USERS ==================
 
 @app.get("/")
@@ -186,8 +230,7 @@ def create_user(user: schemas.UserCreate, background_tasks: BackgroundTasks, db:
         first_name=user.first_name,
         last_name=user.last_name,
         email=user.email,
-        password_hash=get_password_hash(user.password),
-        is_teacher=user.is_teacher
+        password_hash=get_password_hash(user.password)
     )
     db.add(db_user)
     db.commit()
@@ -232,33 +275,44 @@ def get_session(session: models.UserSession = Depends(auth.get_current_session))
     """The logged-in user and CSRF token, so the frontend can resume after a page reload"""
     return schemas.SessionResponse(user=session.user, csrf_token=session.csrf_token)
 
-@app.get("/users/", response_model=list[schemas.UserResponse])
+@app.get("/users/", response_model=list[schemas.UserResponse], dependencies=[Depends(require_admin)])
 def list_users(db: Session = Depends(get_db)):
     """Lists all users"""
     return db.query(models.User).all()
 
 @app.get("/users/{email}", response_model=schemas.UserResponse)
-def get_user(email: str, db: Session = Depends(get_db)):
-    """Gets a user by email"""
+def get_user(email: str, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Gets your own user, or any user if you are an admin"""
+    if email != current_user.email and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="You can only view your own profile")
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 @app.put("/users/{email}", response_model=schemas.UserResponse)
-def update_user(email: str, user_update: schemas.UserUpdate, db: Session = Depends(get_db)):
-    """Updates a user's profile"""
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def update_user(email: str, user_update: schemas.UserUpdate, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Updates your own profile"""
+    if email != user.email:
+        raise HTTPException(status_code=403, detail="You can only edit your own profile")
     
     if user_update.first_name is not None:
         user.first_name = user_update.first_name
     if user_update.last_name is not None:
         user.last_name = user_update.last_name
-    if user_update.is_teacher is not None:
-        user.is_teacher = user_update.is_teacher
     
+    db.commit()
+    db.refresh(user)
+    return user
+
+@app.put("/users/{email}/teacher", response_model=schemas.UserResponse, dependencies=[Depends(require_admin)])
+def set_user_teacher(email: str, role: schemas.UserTeacherUpdate, db: Session = Depends(get_db)):
+    """Grants or revokes the teacher role (admins only)"""
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.is_teacher = role.is_teacher
     db.commit()
     db.refresh(user)
     return user
@@ -266,14 +320,14 @@ def update_user(email: str, user_update: schemas.UserUpdate, db: Session = Depen
 # ================== COURSES ==================
 
 @app.post("/courses/", response_model=schemas.CourseResponse)
-def create_course(course: schemas.CourseCreate, db: Session = Depends(get_db)):
-    """Creates a new course"""
+def create_course(course: schemas.CourseCreate, teacher: models.User = Depends(require_teacher), db: Session = Depends(get_db)):
+    """Creates a new course owned by the caller"""
     db_course = models.Course(
         title=course.title,
         description=course.description,
         is_visible=course.is_visible,
         is_enrollable=course.is_enrollable,
-        teacher_id=course.teacher_id
+        teacher_id=teacher.id
     )
     db.add(db_course)
     db.commit()
@@ -281,36 +335,39 @@ def create_course(course: schemas.CourseCreate, db: Session = Depends(get_db)):
     return db_course
 
 @app.get("/courses/", response_model=list[schemas.CourseResponse])
-def list_all_courses(db: Session = Depends(get_db)):
-    """Lists all courses"""
-    return db.query(models.Course).all()
+def list_all_courses(user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Lists the courses the caller can see: visible ones, their own, and those they are enrolled in"""
+    enrolled_course_ids = db.query(models.Enrollment.course_id).filter(models.Enrollment.user_id == user.id)
+    return db.query(models.Course).filter(or_(
+        models.Course.is_visible == True,
+        models.Course.teacher_id == user.id,
+        models.Course.id.in_(enrolled_course_ids)
+    )).all()
 
-@app.get("/courses/teacher/{teacher_id}", response_model=list[schemas.CourseResponse])
-def list_teacher_courses(teacher_id: int, db: Session = Depends(get_db)):
-    """Lists all courses created by a specific teacher"""
-    return db.query(models.Course).filter(models.Course.teacher_id == teacher_id).all()
+@app.get("/courses/teaching", response_model=list[schemas.CourseResponse])
+def list_teaching_courses(user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Lists all courses created by the caller"""
+    return db.query(models.Course).filter(models.Course.teacher_id == user.id).all()
 
-@app.get("/courses/available/{user_id}", response_model=list[schemas.CourseResponse])
-def list_available_courses(user_id: int, db: Session = Depends(get_db)):
-    """Returns courses a user can enroll in: visible, enrollable, not owned by them, and not already enrolled"""
+@app.get("/courses/available", response_model=list[schemas.CourseResponse])
+def list_available_courses(user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Returns courses the caller can enroll in: visible, enrollable, not owned by them, and not already enrolled"""
     # Get courses the user is already enrolled in
     enrolled_course_ids = [
         e.course_id for e in db.query(models.Enrollment.course_id)
-            .filter(models.Enrollment.user_id == user_id).all()
+            .filter(models.Enrollment.user_id == user.id).all()
     ]
     
     return db.query(models.Course).filter(
         models.Course.is_visible == True,
         models.Course.is_enrollable == True,
-        models.Course.teacher_id != user_id,
+        models.Course.teacher_id != user.id,
         ~models.Course.id.in_(enrolled_course_ids)
     ).all()
 
 @app.delete("/courses/{course_id}")
-def delete_course(course_id: int, db: Session = Depends(get_db)):
-    db_course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not db_course:
-        raise HTTPException(status_code=404, detail="Course not found")
+def delete_course(course_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    db_course = require_course_owner(db, user, course_id)
     
     # Delete related entities first (manual cascade to be safe)
     db.query(models.Enrollment).filter(models.Enrollment.course_id == course_id).delete()
@@ -327,10 +384,8 @@ def delete_course(course_id: int, db: Session = Depends(get_db)):
     return {"message": "Course and all related data deleted"}
 
 @app.patch("/courses/{course_id}/image")
-async def update_course_image(course_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+async def update_course_image(course_id: int, file: UploadFile = File(...), user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    course = require_course_owner(db, user, course_id)
     
     # Read file contents
     contents = await file.read()
@@ -353,11 +408,12 @@ async def update_course_image(course_id: int, file: UploadFile = File(...), db: 
     return {"image_url": public_url}
 
 @app.get("/files/{file_id}")
-def get_file_redirect(file_id: int, db: Session = Depends(get_db)):
+def get_file_redirect(file_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Redirects to a signed GCS URL to handle previewing files securely with range request support"""
     db_file = db.query(models.File).filter(models.File.id == file_id).first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
+    require_course_member(db, user, db_file.course_id)
     
     try:
         signed_url = gcs_db.get_signed_url(db_file.gcs_url)
@@ -369,24 +425,24 @@ def get_file_redirect(file_id: int, db: Session = Depends(get_db)):
         except Exception:
             return RedirectResponse(url=db_file.gcs_url)
 
-def is_course_image_url(url: str) -> bool:
-    """True only for an https URL of a course image in this app's own bucket"""
+def is_own_bucket_url(url: str, folder: str) -> bool:
+    """True only for an https URL inside the given folder of this app's own bucket"""
     if not gcs_db.bucket or any(ord(char) <= 32 or char == "\\" for char in url):
         return False
     parts = urlsplit(url)
     return (
         parts.scheme == "https"
         and parts.netloc == "storage.googleapis.com"
-        and parts.path.startswith(f"/{gcs_db.bucket.name}/courses/")
+        and parts.path.startswith(f"/{gcs_db.bucket.name}/{folder}/")
         and not parts.query
         and not parts.fragment
         and ".." not in unquote(parts.path).split("/")
     )
 
-@app.get("/proxy-image")
+@app.get("/proxy-image", dependencies=[Depends(auth.get_current_user)])
 def proxy_image(url: str):
     """Redirects to a signed GCS URL for a course image in this app's bucket"""
-    if not is_course_image_url(url):
+    if not is_own_bucket_url(url, "courses"):
         raise HTTPException(status_code=400, detail="URL is not a course image in this app's storage")
     try:
         signed_url = gcs_db.get_signed_url(url)
@@ -401,18 +457,16 @@ def proxy_image(url: str):
 # (Redundant get_teacher_courses removed, use list_teacher_courses above)
 
 @app.get("/courses/{course_id}", response_model=schemas.CourseResponse)
-def get_course(course_id: int, db: Session = Depends(get_db)):
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course:
-         raise HTTPException(status_code=404, detail="Course not found")
+def get_course(course_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    course = get_course_or_404(db, course_id)
+    if not course.is_visible and not is_course_member(db, user, course):
+        raise HTTPException(status_code=403, detail="You are not a member of this course")
     return course
 
 @app.put("/courses/{course_id}", response_model=schemas.CourseResponse)
-def update_course(course_id: int, course_update: schemas.CourseUpdate, db: Session = Depends(get_db)):
+def update_course(course_id: int, course_update: schemas.CourseUpdate, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Updates a course"""
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+    course = require_course_owner(db, user, course_id)
     
     if course_update.title is not None:
         course.title = course_update.title
@@ -430,11 +484,9 @@ def update_course(course_id: int, course_update: schemas.CourseUpdate, db: Sessi
 # ================== ASSIGNMENTS (TASKS) ==================
 
 @app.post("/assignments/", response_model=schemas.AssignmentResponse)
-def create_assignment(assignment: schemas.AssignmentCreate, db: Session = Depends(get_db)):
+def create_assignment(assignment: schemas.AssignmentCreate, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Creates a new assignment (task) in a course"""
-    course = db.query(models.Course).filter(models.Course.id == assignment.course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+    require_course_owner(db, user, assignment.course_id)
     
     db_assignment = models.Assignment(
         course_id=assignment.course_id,
@@ -448,20 +500,19 @@ def create_assignment(assignment: schemas.AssignmentCreate, db: Session = Depend
     return db_assignment
 
 @app.get("/assignments/course/{course_id}", response_model=list[schemas.AssignmentResponse])
-def list_assignments(course_id: int, db: Session = Depends(get_db)):
+def list_assignments(course_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Lists all assignments for a course"""
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+    require_course_member(db, user, course_id)
     
     return db.query(models.Assignment).filter(models.Assignment.course_id == course_id).all()
 
 @app.put("/assignments/{assignment_id}", response_model=schemas.AssignmentResponse)
-def update_assignment(assignment_id: int, assignment_update: schemas.AssignmentUpdate, db: Session = Depends(get_db)):
+def update_assignment(assignment_id: int, assignment_update: schemas.AssignmentUpdate, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Updates an assignment"""
     assignment = db.query(models.Assignment).filter(models.Assignment.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    require_course_owner(db, user, assignment.course_id)
     
     if assignment_update.title is not None:
         assignment.title = assignment_update.title
@@ -475,11 +526,12 @@ def update_assignment(assignment_id: int, assignment_update: schemas.AssignmentU
     return assignment
 
 @app.delete("/assignments/{assignment_id}")
-def delete_assignment(assignment_id: int, db: Session = Depends(get_db)):
+def delete_assignment(assignment_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Deletes an assignment (task)"""
     assignment = db.query(models.Assignment).filter(models.Assignment.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    require_course_owner(db, user, assignment.course_id)
     
     # Delete related submissions first
     db.query(models.AssignmentSubmission).filter(
@@ -492,26 +544,26 @@ def delete_assignment(assignment_id: int, db: Session = Depends(get_db)):
 
 # ================== ASSIGNMENT SUBMISSIONS ==================
 @app.post("/submissions/", response_model=schemas.AssignmentSubmissionResponse)
-def submit_assignment(submission: schemas.AssignmentSubmissionCreate, db: Session = Depends(get_db)):
+def submit_assignment(submission: schemas.AssignmentSubmissionCreate, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Submits the caller's work for an assignment in a course they are enrolled in"""
     assignment = db.query(models.Assignment).filter(models.Assignment.id == submission.assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
-        
-    user = db.query(models.User).filter(models.User.id == submission.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if not is_enrolled(db, user, assignment.course_id):
+        raise HTTPException(status_code=403, detail="You are not enrolled in this course")
+    if submission.submission_file_url is not None and not is_own_bucket_url(submission.submission_file_url, "files/uploads"):
+        raise HTTPException(status_code=400, detail="Submission file must be an upload in this app's storage")
 
     existing = db.query(models.AssignmentSubmission).filter(
         models.AssignmentSubmission.assignment_id == submission.assignment_id,
-        models.AssignmentSubmission.user_id == submission.user_id
+        models.AssignmentSubmission.user_id == user.id
     ).first()
     if existing:
          raise HTTPException(status_code=400, detail="Already submitted")
          
     db_sub = models.AssignmentSubmission(
-        user_id=submission.user_id,
+        user_id=user.id,
         assignment_id=submission.assignment_id,
-        grade=submission.grade,
         submission_file_url=submission.submission_file_url
     )
     db.add(db_sub)
@@ -519,21 +571,22 @@ def submit_assignment(submission: schemas.AssignmentSubmissionCreate, db: Sessio
     db.refresh(db_sub)
     return db_sub
 
-@app.get("/submissions/course/{course_id}/user/{user_id}", response_model=list[schemas.AssignmentSubmissionResponse])
-def list_user_submissions_in_course(course_id: int, user_id: int, db: Session = Depends(get_db)):
-    """Lists all submissions by a specific user in a specific course"""
+@app.get("/submissions/course/{course_id}/me", response_model=list[schemas.AssignmentSubmissionResponse])
+def list_my_submissions_in_course(course_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Lists the caller's own submissions in a course"""
+    require_course_member(db, user, course_id)
     assignment_ids = [a.id for a in db.query(models.Assignment.id).filter(models.Assignment.course_id == course_id).all()]
     return db.query(models.AssignmentSubmission).filter(
-        models.AssignmentSubmission.user_id == user_id,
+        models.AssignmentSubmission.user_id == user.id,
         models.AssignmentSubmission.assignment_id.in_(assignment_ids)
     ).all()
 
-@app.delete("/submissions/assignment/{assignment_id}/user/{user_id}")
-def delete_submission(assignment_id: int, user_id: int, db: Session = Depends(get_db)):
-    """Deletes a submission by a specific user for a specific assignment"""
+@app.delete("/submissions/assignment/{assignment_id}/me")
+def delete_my_submission(assignment_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Deletes the caller's own submission for an assignment"""
     db_sub = db.query(models.AssignmentSubmission).filter(
         models.AssignmentSubmission.assignment_id == assignment_id,
-        models.AssignmentSubmission.user_id == user_id
+        models.AssignmentSubmission.user_id == user.id
     ).first()
     if not db_sub:
         raise HTTPException(status_code=404, detail="Submission not found")
@@ -545,11 +598,9 @@ def delete_submission(assignment_id: int, user_id: int, db: Session = Depends(ge
 # ================== POSTS (TEXT BLOCKS) ==================
 
 @app.post("/textblocks/", response_model=schemas.TextBlockResponse)
-def create_textblock(textblock: schemas.TextBlockCreate, db: Session = Depends(get_db)):
+def create_textblock(textblock: schemas.TextBlockCreate, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Creates a new text block (post) in a course"""
-    course = db.query(models.Course).filter(models.Course.id == textblock.course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+    require_course_owner(db, user, textblock.course_id)
     
     db_textblock = models.TextBlock(
         course_id=textblock.course_id,
@@ -562,20 +613,19 @@ def create_textblock(textblock: schemas.TextBlockCreate, db: Session = Depends(g
     return db_textblock
 
 @app.get("/textblocks/course/{course_id}", response_model=list[schemas.TextBlockResponse])
-def list_textblocks(course_id: int, db: Session = Depends(get_db)):
+def list_textblocks(course_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Lists all text blocks for a course"""
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+    require_course_member(db, user, course_id)
     
     return db.query(models.TextBlock).filter(models.TextBlock.course_id == course_id).all()
 
 @app.delete("/textblocks/{textblock_id}")
-def delete_textblock(textblock_id: int, db: Session = Depends(get_db)):
+def delete_textblock(textblock_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Deletes a text block (post)"""
     db_textblock = db.query(models.TextBlock).filter(models.TextBlock.id == textblock_id).first()
     if not db_textblock:
         raise HTTPException(status_code=404, detail="Post not found")
+    require_course_owner(db, user, db_textblock.course_id)
     
     db.delete(db_textblock)
     db.commit()
@@ -584,28 +634,21 @@ def delete_textblock(textblock_id: int, db: Session = Depends(get_db)):
 # ================== ENROLLMENTS ==================
 
 @app.post("/enrollments/", response_model=schemas.EnrollmentResponse)
-def create_enrollment(enrollment: schemas.EnrollmentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Enrolls a user in a course and sends a welcome email"""
-    user = db.query(models.User).filter(models.User.id == enrollment.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def create_enrollment(enrollment: schemas.EnrollmentCreate, background_tasks: BackgroundTasks, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Enrolls the caller in a course and sends a welcome email"""
+    course = get_course_or_404(db, enrollment.course_id)
     
-    course = db.query(models.Course).filter(models.Course.id == enrollment.course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-    
-    if course.teacher_id == enrollment.user_id:
+    if course.teacher_id == user.id:
         raise HTTPException(status_code=400, detail="You cannot enroll in your own course")
 
-    existing = db.query(models.Enrollment).filter(
-        models.Enrollment.user_id == enrollment.user_id,
-        models.Enrollment.course_id == enrollment.course_id
-    ).first()
-    if existing:
+    if is_enrolled(db, user, enrollment.course_id):
         raise HTTPException(status_code=400, detail="You are already enrolled in this course")
     
+    if not course.is_visible or not course.is_enrollable:
+        raise HTTPException(status_code=403, detail="This course is not open for enrollment")
+    
     db_enrollment = models.Enrollment(
-        user_id=enrollment.user_id,
+        user_id=user.id,
         course_id=enrollment.course_id
     )
     db.add(db_enrollment)
@@ -617,32 +660,40 @@ def create_enrollment(enrollment: schemas.EnrollmentCreate, background_tasks: Ba
 
     return db_enrollment
 
-@app.get("/enrollments/user/{user_id}", response_model=list[schemas.EnrollmentListResponse])
-def list_user_enrollments(user_id: int, db: Session = Depends(get_db)):
-    """Lists all courses a user is enrolled in"""
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    return db.query(models.Enrollment).filter(models.Enrollment.user_id == user_id).all()
+@app.get("/enrollments/me", response_model=list[schemas.EnrollmentListResponse])
+def list_my_enrollments(user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Lists all courses the caller is enrolled in"""
+    return db.query(models.Enrollment).filter(models.Enrollment.user_id == user.id).all()
 
-@app.get("/enrollments/course/{course_id}", response_model=list[schemas.EnrollmentListResponse])
-def list_course_enrollments(course_id: int, db: Session = Depends(get_db)):
-    """Lists all students enrolled in a course"""
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-        
-    return db.query(models.Enrollment).filter(models.Enrollment.course_id == course_id).all()
+@app.get("/enrollments/course/{course_id}", response_model=list[schemas.EnrollmentRosterResponse])
+def list_course_enrollments(course_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Lists all students enrolled in a course. Only the course's teacher sees their emails"""
+    course = require_course_member(db, user, course_id)
+    show_emails = course.teacher_id == user.id
+    
+    return [
+        schemas.EnrollmentRosterResponse(
+            user_id=enrollment.user_id,
+            course_id=enrollment.course_id,
+            enrollment_date=enrollment.enrollment_date,
+            user=schemas.RosterUser(
+                id=enrollment.user.id,
+                first_name=enrollment.user.first_name,
+                last_name=enrollment.user.last_name,
+                email=enrollment.user.email if show_emails else None
+            )
+        )
+        for enrollment in db.query(models.Enrollment).filter(models.Enrollment.course_id == course_id).all()
+    ]
 
 @app.delete("/enrollments/")
-def unenroll_user(enrollment: schemas.EnrollmentCreate, db: Session = Depends(get_db)):
-    """Unenrolls a user from a course"""
-    print(f"DEBUG: Unenrolling user_id={enrollment.user_id} from course_id={enrollment.course_id}")
+def unenroll_user(enrollment: schemas.EnrollmentCreate, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Unenrolls the caller from a course"""
+    print(f"DEBUG: Unenrolling user_id={user.id} from course_id={enrollment.course_id}")
     try:
         # Delete related assignment submissions to prevent constraint violations
         db.query(models.AssignmentSubmission).filter(
-            models.AssignmentSubmission.user_id == enrollment.user_id,
+            models.AssignmentSubmission.user_id == user.id,
             models.AssignmentSubmission.assignment_id.in_(
                 db.query(models.Assignment.id).filter(models.Assignment.course_id == enrollment.course_id)
             )
@@ -650,7 +701,7 @@ def unenroll_user(enrollment: schemas.EnrollmentCreate, db: Session = Depends(ge
 
         # Delete the enrollment
         deleted_count = db.query(models.Enrollment).filter(
-            models.Enrollment.user_id == enrollment.user_id,
+            models.Enrollment.user_id == user.id,
             models.Enrollment.course_id == enrollment.course_id
         ).delete(synchronize_session=False)
         
@@ -669,7 +720,7 @@ def unenroll_user(enrollment: schemas.EnrollmentCreate, db: Session = Depends(ge
 
 # ================== FILES (GCS HYBRID) ==================
 
-@app.post("/files/upload")
+@app.post("/files/upload", dependencies=[Depends(auth.get_current_user)])
 def upload_generic_file(file: UploadFile = File(...)):
     """Uploads a generic file to GCS and returns its public URL"""
     try:
@@ -693,16 +744,15 @@ def upload_generic_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
 @app.get("/files/course/{course_id}", response_model=list[schemas.FileResponse])
-def get_course_files(course_id: int, db: Session = Depends(get_db)):
+def get_course_files(course_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Retrieves all files associated with a course"""
+    require_course_member(db, user, course_id)
     return db.query(models.File).filter(models.File.course_id == course_id).all()
 
 @app.post("/files/course/{course_id}", response_model=schemas.FileResponse)
-def upload_course_file(course_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+def upload_course_file(course_id: int, file: UploadFile = File(...), user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Uploads a file to GCS and stores the reference in the Files table for a course"""
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+    require_course_owner(db, user, course_id)
     
     try:
         contents = file.file.read()
@@ -739,11 +789,12 @@ def upload_course_file(course_id: int, file: UploadFile = File(...), db: Session
 # (Redundant list_course_files removed, use get_course_files above)
 
 @app.delete("/files/{file_id}")
-def delete_course_file(file_id: int, db: Session = Depends(get_db)):
+def delete_course_file(file_id: int, user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     """Deletes a file from the course and from GCS"""
     db_file = db.query(models.File).filter(models.File.id == file_id).first()
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
+    require_course_owner(db, user, db_file.course_id)
     
     # Delete from GCS
     gcs_db.delete_file(db_file.gcs_url)

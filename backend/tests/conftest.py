@@ -49,6 +49,7 @@ from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import auth  # noqa: E402
 import main  # noqa: E402
 from database import Base, get_db  # noqa: E402
 
@@ -75,6 +76,18 @@ def db_session():
 def client():
     """Does not run the startup event, which needs MySQL."""
     return TestClient(main.app, raise_server_exceptions=False)
+
+
+@pytest.fixture
+def as_user(db_session):
+    """Makes a client that is logged in as the given user, with its CSRF token on every request."""
+    def make_client(user):
+        token, csrf_token = auth.create_session(db_session, user)
+        logged_in = TestClient(main.app, raise_server_exceptions=False)
+        logged_in.cookies.set(auth.SESSION_COOKIE_NAME, token)
+        logged_in.headers[auth.CSRF_HEADER] = csrf_token
+        return logged_in
+    return make_client
 
 
 @pytest.fixture

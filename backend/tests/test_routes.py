@@ -27,6 +27,14 @@ def configured_bucket(monkeypatch):
     monkeypatch.setattr(main, "gcs_db", GCSDatabase(FakeBucket()))
 
 
+@pytest.fixture
+def logged_in(db_session, as_user):
+    user = models.User(first_name="S", last_name="S", email="viewer@example.com", password_hash="x")
+    db_session.add(user)
+    db_session.commit()
+    return as_user(user)
+
+
 def get_proxy(client, url):
     return client.get(f"/proxy-image?url={quote(url, safe='')}", follow_redirects=False)
 
@@ -61,20 +69,20 @@ REJECTED_URLS = [
 
 
 @pytest.mark.parametrize("url", REJECTED_URLS)
-def test_proxy_image_rejects_anything_but_a_cover_in_our_bucket(client, configured_bucket, url):
-    response = get_proxy(client, url)
+def test_proxy_image_rejects_anything_but_a_cover_in_our_bucket(logged_in, configured_bucket, url):
+    response = get_proxy(logged_in, url)
     assert response.status_code == 400
     assert "location" not in response.headers
 
 
-def test_proxy_image_does_not_redirect_when_no_bucket_is_configured(client):
-    response = get_proxy(client, "https://evil.example/a.png")
+def test_proxy_image_does_not_redirect_when_no_bucket_is_configured(logged_in):
+    response = get_proxy(logged_in, "https://evil.example/a.png")
     assert response.status_code == 400
     assert "location" not in response.headers
 
 
-def test_proxy_image_still_redirects_a_valid_cover_to_its_signed_url(client, configured_bucket):
-    response = get_proxy(client, f"{BUCKET_URL}/courses/7/cover_a.png")
+def test_proxy_image_still_redirects_a_valid_cover_to_its_signed_url(logged_in, configured_bucket):
+    response = get_proxy(logged_in, f"{BUCKET_URL}/courses/7/cover_a.png")
     assert response.status_code == 307
     assert response.headers["location"] == SIGNED_URL
 
@@ -98,16 +106,16 @@ def add_course_with_related_rows(session, email):
         models.File(course_id=course.id, file_name="f", gcs_url="u"),
     ])
     session.commit()
-    return course.id, assignment.id
+    return teacher, course.id, assignment.id
 
 
 RELATED_MODELS = [models.Assignment, models.Enrollment, models.TextBlock, models.File]
 
 
-def test_delete_course_removes_it_and_all_related_rows(client, db_session):
-    course_id, _ = add_course_with_related_rows(db_session, "a@example.com")
+def test_delete_course_removes_it_and_all_related_rows(as_user, db_session):
+    teacher, course_id, _ = add_course_with_related_rows(db_session, "a@example.com")
 
-    response = client.delete(f"/courses/{course_id}")
+    response = as_user(teacher).delete(f"/courses/{course_id}")
 
     assert response.status_code == 200
     assert response.json() == {"message": "Course and all related data deleted"}
@@ -117,11 +125,11 @@ def test_delete_course_removes_it_and_all_related_rows(client, db_session):
         assert db_session.query(model).count() == 0
 
 
-def test_delete_course_leaves_other_courses_untouched(client, db_session):
-    course_id, _ = add_course_with_related_rows(db_session, "a@example.com")
-    other_id, other_assignment_id = add_course_with_related_rows(db_session, "b@example.com")
+def test_delete_course_leaves_other_courses_untouched(as_user, db_session):
+    teacher, course_id, _ = add_course_with_related_rows(db_session, "a@example.com")
+    _, other_id, other_assignment_id = add_course_with_related_rows(db_session, "b@example.com")
 
-    assert client.delete(f"/courses/{course_id}").status_code == 200
+    assert as_user(teacher).delete(f"/courses/{course_id}").status_code == 200
 
     assert [c.id for c in db_session.query(models.Course).all()] == [other_id]
     assert db_session.query(models.AssignmentSubmission).one().assignment_id == other_assignment_id
@@ -129,5 +137,5 @@ def test_delete_course_leaves_other_courses_untouched(client, db_session):
         assert db_session.query(model).count() == 1
 
 
-def test_delete_unknown_course_still_returns_404(client, db_session):
-    assert client.delete("/courses/999").status_code == 404
+def test_delete_unknown_course_still_returns_404(logged_in):
+    assert logged_in.delete("/courses/999").status_code == 404
