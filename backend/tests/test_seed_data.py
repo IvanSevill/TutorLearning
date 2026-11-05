@@ -1,7 +1,7 @@
 import re
 
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 import main
 import seed_data
@@ -53,7 +53,7 @@ def test_seeding_queues_no_mail_and_later_signups_mail_only_the_new_user(test_my
     monkeypatch.setattr(main.gmail_service, "send_email", fake_send)
     response = TestClient(main.app).post("/users/", json={
         "first_name": "New", "last_name": "User", "email": "new.user@example.com",
-        "password": "not-a-real-password", "is_teacher": False,
+        "password": "not-a-real-password",
     })
 
     assert response.status_code == 200
@@ -67,3 +67,28 @@ def test_seeded_accounts_log_in_with_the_chosen_password(test_mysql, monkeypatch
     client = TestClient(main.app)
     assert client.post("/login/", json={"email": email, "password": "chosen-for-this-run"}).status_code == 200
     assert client.post("/login/", json={"email": email, "password": "wrong"}).status_code == 401
+
+
+def test_seed_marks_one_admin_who_can_list_users(test_mysql, monkeypatch):
+    monkeypatch.setenv("SEED_USER_PASSWORD", "chosen-for-this-run")
+    seed_data.seed_database()
+    assert count("Users WHERE is_admin = 1") == 1
+
+    client = TestClient(main.app)
+    response = client.post("/login/", json={"email": seed_data.ADMIN_EMAIL, "password": "chosen-for-this-run"})
+    assert response.json()["user"]["is_admin"] is True
+    assert len(client.get("/users/").json()) == 20
+
+
+def test_startup_adds_the_admin_column_to_an_existing_database(test_mysql):
+    seed_data.seed_database()
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE Users DROP COLUMN is_admin"))
+
+    main.on_startup()
+
+    assert "is_admin" in {column["name"] for column in inspect(engine).get_columns("Users")}
+    assert count("Users") == 20
+    assert count("Users WHERE is_admin = 0") == 20
+    assert count("Users WHERE is_teacher = 1") == len(seed_data.TEACHERS)
+    assert "Sessions" in inspect(engine).get_table_names()

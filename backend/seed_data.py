@@ -34,6 +34,9 @@ STUDENTS = [
     ("Talia", "Morrow", "talia.morrow@example.com"),
 ]
 
+# The first teacher also runs the admin tools, so a seeded database can grant the teacher role.
+ADMIN_EMAIL = TEACHERS[0][2]
+
 def get_seed_password():
     """SEED_USER_PASSWORD if set, otherwise a new random password for this run"""
     return os.getenv("SEED_USER_PASSWORD") or secrets.token_urlsafe(16)
@@ -105,6 +108,7 @@ def seed_database():
                 last_name=last,
                 email=email,
                 is_teacher=True,
+                is_admin=email == ADMIN_EMAIL,
                 password_hash=password_hash
             )
             teachers.append(teacher)
@@ -293,7 +297,7 @@ def seed_database():
         print(f"Enrollments: {len(enrollments)}")
         print("=============================")
         print(f"Test Accounts (Password: {seed_password})")
-        print(f"- Teacher: {TEACHERS[0][2]}")
+        print(f"- Admin and teacher: {ADMIN_EMAIL}")
         print(f"- Student: {STUDENTS[0][2]}")
         print("=============================")
         
