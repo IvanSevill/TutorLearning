@@ -46,8 +46,8 @@ const CourseDetails = ({ course: initialCourse, user, onBack }) => {
       setStudents(studentsData);
       setFiles(filesData);
       setSubmissions(submissionsData);
-    } catch {
-      showNotify('Error fetching course data', 'error');
+    } catch (error) {
+      showNotify(error.message, 'error');
     } finally {
       setLoading(false);
     }

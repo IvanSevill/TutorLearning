@@ -42,7 +42,9 @@ const CourseCard = ({ course, user, activeTab, onSelect, onEnroll, onUnenroll })
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '130px' }}>
-        <button className="primary" onClick={() => onSelect(course)}>Open →</button>
+        {activeTab !== 'all' && (
+          <button className="primary" onClick={() => onSelect(course)}>Open →</button>
+        )}
         {activeTab === 'all' && !isTeacherOfCourse && (
           <button onClick={() => onEnroll(course.id)}>Enroll</button>
         )}

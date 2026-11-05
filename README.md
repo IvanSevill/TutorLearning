@@ -20,7 +20,7 @@ This was a class project and is not under active development.
 
 ## Run it locally
 
-You need Docker, Python 3.11, and Node.js. These steps were tested with MySQL 8.4 and Node 22. MariaDB 11.8 also worked.
+You need Docker, Python 3.11, and Node.js. The app was first tested with MySQL 8.4 and Node 22. The access control was tested with MariaDB 11.8 only.
 
 **1. Start a database.** Give it about 20 seconds to come up.
 
@@ -52,9 +52,10 @@ npm run dev
 
 Open <http://localhost:3000>. Use `localhost`, not `127.0.0.1`: the browser treats them as different sites, so login would not stick.
 
-**4. Create the first admin.** Sign up in the browser, then run this in the backend terminal.
+**4. Create the first admin.** Sign up in the browser. Then, in a second terminal with the virtual environment active and the same `DB_*` values exported, run this.
 
 ```bash
+cd backend
 python manage_admins.py grant you@example.com
 ```
 
@@ -98,18 +99,20 @@ curl -X POST http://localhost:8000/logout/ -b cookies.txt -H 'X-CSRF-Token: <csr
 
 ## Access rules
 
-The caller is always the user of the session cookie. A request that names a `user_id`, `teacher_id`, `is_teacher`, `is_admin`, or `grade` it may not set gets a 422 error.
+The caller is always the user of the session cookie. A request body with a field its route does not accept, such as `user_id`, `teacher_id`, `is_teacher`, `is_admin`, or `grade`, gets a 422 error.
 
 | Who | Can do |
 |-----|--------|
-| Anyone | `GET /`, sign up, log in |
+| Anyone | `GET /`, sign up, log in, read the API docs at `/docs` |
 | Any logged-in user | Own profile and session, log out, upload a file, see visible courses, enroll in a visible and open course, leave a course |
 | Enrolled student | Read the course's posts, assignments, files, and student list without emails. Submit and delete their own work |
-| The course's teacher | Everything above for that course, plus see student emails. Edit or delete the course, and manage its posts, assignments, and files |
+| The course's teacher | Read the same course content, plus see student emails. Edit or delete the course, and manage its posts, assignments, and files. This stays true if the teacher role is later revoked |
 | Teacher | Create courses |
 | Admin | List and view users, grant or revoke the teacher role. Admins get no extra access to course content |
 
 Without a valid session, a request gets a 401 error. With a session but no permission, it gets a 403 error. Every state-changing request also needs the session's `X-CSRF-Token` header, or it gets a 403 error. Sessions expire after `SESSION_TTL_HOURS`.
+
+The **Discover** tab offers only **Enroll**: a course's content opens after you join. An existing database keeps its `is_teacher` values, including any that people gave themselves before this change, so review them in the **Users** tab.
 
 ## Configuration
 
@@ -152,7 +155,7 @@ This is unfinished work. The backend tests cover access control and recent fixes
 - **No login protection.** Nothing limits login attempts, email addresses are not verified, and sign-up errors and login timing reveal whether an email is registered.
 - **Weak password rules.** Passwords are stored as bcrypt hashes, but there is no minimum length, and bcrypt ignores everything after 72 bytes.
 - **Uploaded files have direct links.** Submission links, and the `gcs_url` that course file responses include, point straight at the bucket. If the bucket is public, anyone with a link can open the file without a session.
-- **Uploads have no limits.** Any logged-in user can upload a file of any type or size.
+- **Uploads have no limits.** Any logged-in user can upload a file of any type or size, and the server reads an upload's body before it checks the session.
 - **Sessions end one at a time.** Logging out ends only the current session, so other devices stay logged in until they expire.
 - **Cover images are not checked per course.** Any logged-in user can load a cover through `/proxy-image`, including one from a draft course, if they know its URL.
 

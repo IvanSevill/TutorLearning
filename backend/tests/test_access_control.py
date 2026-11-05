@@ -256,6 +256,11 @@ def test_state_changing_request_without_a_csrf_token_is_rejected(as_user, db_ses
     ("DELETE", "/enrollments/", {"course_id": 0, "user_id": 0}),
     ("POST", "/submissions/", {"assignment_id": 0, "user_id": 0}),
     ("POST", "/courses/", {"title": "T", "teacher_id": 0}),
+    ("PUT", "/courses/1", {"title": "T", "teacher_id": 0}),
+    ("POST", "/assignments/", {"title": "T", "course_id": 1, "user_id": 0}),
+    ("PUT", "/assignments/1", {"title": "T", "user_id": 0}),
+    ("POST", "/textblocks/", {"title": "T", "course_id": 1, "teacher_id": 0}),
+    ("POST", "/login/", {"email": "owner@example.com", "password": "x", "is_admin": True}),
 ])
 def test_identity_fields_in_the_request_are_refused(as_user, db_session, world, method, path, body):
     client = as_user(world.owner)

@@ -40,6 +40,9 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+    class Config:
+        extra = "forbid"
+
 class SessionResponse(BaseModel):
     user: UserResponse
     csrf_token: str
@@ -65,6 +68,9 @@ class CourseUpdate(BaseModel):
     description: Optional[str] = None
     is_visible: Optional[bool] = None
     is_enrollable: Optional[bool] = None
+
+    class Config:
+        extra = "forbid"
 
 class CourseTeacher(BaseModel):
     id: int
@@ -130,10 +136,16 @@ class AssignmentBase(BaseModel):
 class AssignmentCreate(AssignmentBase):
     course_id: int
 
+    class Config:
+        extra = "forbid"
+
 class AssignmentUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[datetime] = None
+
+    class Config:
+        extra = "forbid"
 
 class AssignmentResponse(AssignmentBase):
     id: int
@@ -188,6 +200,9 @@ class TextBlockBase(BaseModel):
 
 class TextBlockCreate(TextBlockBase):
     course_id: int
+
+    class Config:
+        extra = "forbid"
 
 class TextBlockUpdate(BaseModel):
     title: Optional[str] = None
