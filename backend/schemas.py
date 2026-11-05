@@ -28,9 +28,12 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-class LoginResponse(BaseModel):
-    message: str
+class SessionResponse(BaseModel):
     user: UserResponse
+    csrf_token: str
+
+class LoginResponse(SessionResponse):
+    message: str
 
 # ===================== COURSES =====================
 

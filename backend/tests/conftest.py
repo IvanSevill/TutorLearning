@@ -36,6 +36,11 @@ os.environ.update(
     GMAIL_SENDER_EMAIL="",
     GMAIL_APP_PASSWORD="",
     SEED_USER_PASSWORD="",
+    # The test client talks plain http, where a Secure cookie would not be sent back.
+    SESSION_COOKIE_SECURE="false",
+    SESSION_COOKIE_SAMESITE="",
+    SESSION_TTL_HOURS="",
+    CORS_ALLOWED_ORIGINS="",
     NO_GCE_CHECK="true",
 )
 

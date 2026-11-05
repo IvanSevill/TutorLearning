@@ -17,6 +17,17 @@ class User(Base):
     enrollments = relationship("Enrollment", back_populates="user")
     submissions = relationship("AssignmentSubmission", back_populates="user")
 
+class UserSession(Base):
+    __tablename__ = "Sessions"
+
+    token_hash = Column(String(64), primary_key=True)
+    user_id = Column(Integer, ForeignKey("Users.id"), nullable=False, index=True)
+    csrf_token = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=text("CURRENT_TIMESTAMP"))
+    expires_at = Column(DateTime, nullable=False)
+
+    user = relationship("User")
+
 class Course(Base):
     __tablename__ = "Courses"
 

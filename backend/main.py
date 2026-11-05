@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ import tempfile
 import mimetypes
 from urllib.parse import urlsplit, unquote
 
+import auth
 import schemas
 import models
 from database import get_db, gcs_db, engine, SessionLocal
@@ -83,13 +84,13 @@ def process_email_queue():
 
 app = FastAPI(title="Tutor-Learning-API", version="1.0")
 
-# CORS middleware — allow specific origins for development and production
+# CORS middleware — only the origins in CORS_ALLOWED_ORIGINS, as requests carry the session cookie
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=auth.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", auth.CSRF_HEADER],
 )
 
 @app.on_event("startup")
@@ -174,7 +175,7 @@ def verify_password(plain_password: str, hashed_password: str):
 def read_root():
     return {"message": "Welcome to the Tutor-Learning Platform Backend!"}
 
-@app.post("/users/", response_model=schemas.UserResponse)
+@app.post("/users/", response_model=schemas.UserResponse, dependencies=[Depends(auth.require_trusted_origin)])
 def create_user(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Creates a new user"""
     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
@@ -197,18 +198,39 @@ def create_user(user: schemas.UserCreate, background_tasks: BackgroundTasks, db:
 
     return db_user
 
-@app.post("/login/", response_model=schemas.LoginResponse)
-def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
-    """User login"""
+@app.post("/login/", response_model=schemas.LoginResponse, dependencies=[Depends(auth.require_trusted_origin)])
+def login(credentials: schemas.UserLogin, request: Request, response: Response, db: Session = Depends(get_db)):
+    """User login: starts a session in an HttpOnly cookie"""
     user = db.query(models.User).filter(models.User.email == credentials.email).first()
     
     if not user or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
+    previous_token = request.cookies.get(auth.SESSION_COOKIE_NAME)
+    if previous_token:
+        auth.delete_session(db, previous_token)
+    auth.delete_expired_sessions(db)
+    token, csrf_token = auth.create_session(db, user)
+    auth.set_session_cookie(response, token)
+    
     return schemas.LoginResponse(
         message="Login successful",
-        user=user
+        user=user,
+        csrf_token=csrf_token
     )
+
+@app.post("/logout/")
+def logout(response: Response, session: models.UserSession = Depends(auth.get_current_session), db: Session = Depends(get_db)):
+    """Ends the caller's session"""
+    db.delete(session)
+    db.commit()
+    auth.clear_session_cookie(response)
+    return {"message": "Logged out"}
+
+@app.get("/session/", response_model=schemas.SessionResponse)
+def get_session(session: models.UserSession = Depends(auth.get_current_session)):
+    """The logged-in user and CSRF token, so the frontend can resume after a page reload"""
+    return schemas.SessionResponse(user=session.user, csrf_token=session.csrf_token)
 
 @app.get("/users/", response_model=list[schemas.UserResponse])
 def list_users(db: Session = Depends(get_db)):
@@ -731,4 +753,4 @@ def delete_course_file(file_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"detail": "File deleted successfully"}
-
+
